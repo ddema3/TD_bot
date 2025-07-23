@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Панель управления</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #355C7D 0%, #2A5298 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+        }
+        .app-container {
+            background: rgba(255,255,255,0.96);
+            border-radius: 16px;
+            padding: 20px 16px 16px 16px;
+            margin: 30px auto 0 auto;
+            max-width: 480px;
+            box-shadow: 0 6px 30px rgba(50,60,80,0.13);
+        }
+        .param-block {
+            margin-bottom: 10px;
+        }
+        .custom-button, .rocket-button, .exit-button {
+            width: 100%;
+            min-height: 52px;
+            border-radius: 16px;
+            border: 2px solid #1e40af;
+            background: #f8fafc;
+            margin-bottom: 10px;
+            font-size: 1.17rem;
+            font-weight: bold;
+            color: #1e40af;
+        }
+        .rocket-button {
+            background: linear-gradient(90deg, #60a5fa 0%, #818cf8 100%);
+            color: #fff;
+            border: none;
+        }
+        .exit-button {
+            margin-top: 20px;
+            background: #f87171;
+            color: #fff;
+            border: none;
+        }
+        .input-field {
+            width: 100%;
+            padding: 12px;
+            border-radius: 12px;
+            border: 2px solid #818cf8;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+        .result-block {
+            width: 100%;
+            height: 320px;
+            background: #f1f5f9;
+            border-radius: 10px;
+            margin: 14px 0 0 0;
+            padding: 12px 8px 12px 8px;
+            overflow-y: auto;
+            font-family: 'Fira Mono', 'Consolas', monospace;
+            font-size: 1em;
+            color: #1e293b;
+            display: flex;
+            flex-direction: column-reverse; /* ВЫВОД СНИЗУ ВВЕРХ */
+        }
+        .result-line {
+            white-space: pre-wrap;
+            padding: 0;
+            margin-bottom: 2px;
+        }
+        /* overlay styles */
+        .overlay-panel {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(255,255,255,0.98);
+            z-index: 10;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            opacity: 0; visibility: hidden;
+            transition: opacity 0.2s;
+        }
+        .overlay-panel.active { opacity: 1; visibility: visible; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+<div class="app-container" id="app">
+    <!-- Главное меню -->
+    <div id="main-panel-content">
+        <div class="param-block">
+            <button class="custom-button" onclick="showOverlay('pair')">Пара: <span id="display_pair">ETHFDUSD</span></button>
+        </div>
+        <div class="param-block">
+            <button class="custom-button" onclick="showOverlay('action')">Действие: <span id="display_action">buy</span></button>
+        </div>
+        <div class="param-block">
+            <button class="custom-button" onclick="showInputOverlay('profit')">Прибыль %: <span id="display_profit">0.2</span></button>
+        </div>
+        <div class="param-block">
+            <button class="custom-button" onclick="showInputOverlay('loss')">Убыток %: <span id="display_loss">0.1</span></button>
+        </div>
+        <div class="param-block">
+            <button class="custom-button" onclick="showOverlay('total')">Всего %: <span id="display_total">50</span></button>
+        </div>
+        <div class="param-block">
+            <button class="rocket-button" id="start-btn" onclick="startTrade()" style="margin-bottom:0;">СТАРТ</button>
+        </div>
+        <div class="result-block" id="result-block"></div>
+        <button class="exit-button" onclick="exitTelegramBot()">ВЫХОД</button>
+    </div>
+    <!-- Overlays -->
+    <div id="overlay-pair" class="overlay-panel">
+        <div style="width:100%;max-width:350px;text-align:center;">
+            <h3 style="margin-bottom:18px;">Выберите пару</h3>
+            <button class="custom-button" onclick="selectPair('BTCFDUSD')">BTCFDUSD</button>
+            <button class="custom-button" onclick="selectPair('ETHFDUSD')">ETHFDUSD</button>
+            <button class="custom-button" onclick="hideAllOverlays()">Назад</button>
+        </div>
+    </div>
+    <div id="overlay-action" class="overlay-panel">
+        <div style="width:100%;max-width:350px;text-align:center;">
+            <h3 style="margin-bottom:18px;">Действие</h3>
+            <button class="custom-button" onclick="selectAction('buy')">Купить</button>
+            <button class="custom-button" onclick="selectAction('sell')">Продать</button>
+            <button class="custom-button" onclick="selectAction('random')">Рандом</button>
+            <button class="custom-button" onclick="hideAllOverlays()">Назад</button>
+        </div>
+    </div>
+    <div id="overlay-total" class="overlay-panel">
+        <div style="width:100%;max-width:350px;text-align:center;">
+            <h3 style="margin-bottom:18px;">Всего (%)</h3>
+            <button class="custom-button" onclick="selectTotal(30)">30</button>
+            <button class="custom-button" onclick="selectTotal(50)">50</button>
+            <button class="custom-button" onclick="selectTotal(100)">100</button>
+            <button class="custom-button" onclick="hideAllOverlays()">Назад</button>
+        </div>
+    </div>
+    <div id="overlay-input" class="overlay-panel">
+        <div style="width:100%;max-width:350px;text-align:center;">
+            <h3 id="input-label" style="margin-bottom:18px;"></h3>
+            <input id="input-value" class="input-field" type="number" step="any">
+            <button class="custom-button" onclick="confirmInput()">OK</button>
+            <button class="custom-button" onclick="hideAllOverlays()">Назад</button>
+        </div>
+    </div>
+</div>
+<script>
+    // --- Параметры, синхронизировать с backend ---
+    let params = {
+        pair: "ETHFDUSD",
+        action: "buy",
+        profit: 0.2,
+        loss: 0.1,
+        total: 50,
+        chat_id: null
+    };
+    let ws = null;
+    let reconnectTimeout = null;
+
+    // --- Telegram WebApp API (если есть) ---
+    if (window.Telegram && window.Telegram.WebApp && Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user) {
+        params.chat_id = Telegram.WebApp.initDataUnsafe.user.id;
+    }
+    // Fallback (dev): можно хардкодить chat_id
+    if (!params.chat_id) {
+        params.chat_id = "123456789";
+    }
+
+    function updateDisplay() {
+        document.getElementById('display_pair').textContent = params.pair;
+        document.getElementById('display_action').textContent = params.action;
+        document.getElementById('display_profit').textContent = params.profit;
+        document.getElementById('display_loss').textContent = params.loss;
+        document.getElementById('display_total').textContent = params.total;
+    }
+
+    function showOverlay(type) {
+        hideAllOverlays();
+        document.getElementById('overlay-' + type).classList.add('active');
+    }
+    function hideAllOverlays() {
+        document.querySelectorAll('.overlay-panel').forEach(el=>el.classList.remove('active'));
+    }
+    function showInputOverlay(field) {
+        hideAllOverlays();
+        let label = "";
+        if (field==="profit") label = "Введите прибыль (%)";
+        if (field==="loss") label = "Введите убыток (%)";
+        document.getElementById('input-label').textContent = label;
+        document.getElementById('input-value').value = params[field];
+        document.getElementById('input-value').setAttribute('data-field', field);
+        document.getElementById('overlay-input').classList.add('active');
+    }
+    function confirmInput() {
+        const field = document.getElementById('input-value').getAttribute('data-field');
+        let val = document.getElementById('input-value').value;
+        if (!val || isNaN(val)) return;
+        params[field] = Number(val);
+        hideAllOverlays();
+        updateDisplay();
+    }
+    function selectPair(pair) {
+        params.pair = pair;
+        hideAllOverlays();
+        updateDisplay();
+    }
+    function selectAction(action) {
+        params.action = action;
+        hideAllOverlays();
+        updateDisplay();
+    }
+    function selectTotal(val) {
+        params.total = val;
+        hideAllOverlays();
+        updateDisplay();
+    }
+
+    // --- WebSocket для логов ---
+    function connectWS() {
+        if (ws) { ws.close(); }
+        ws = new WebSocket("ws://" + location.hostname + ":8080/ws");
+        ws.onopen = ()=>{};
+        ws.onmessage = function(event) {
+            const block = document.getElementById("result-block");
+            block.innerHTML = "";
+            if (event.data) {
+                const lines = event.data.split("\n");
+                // вывод снизу вверх (flex-direction: column-reverse)
+                lines.forEach(line=>{
+                    if (line.trim().length>0) {
+                        const div = document.createElement("div");
+                        div.className = "result-line";
+                        div.textContent = line;
+                        block.appendChild(div);
+                    }
+                });
+            }
+        };
+        ws.onclose = function() {
+            reconnectTimeout = setTimeout(connectWS, 3000);
+        };
+    }
+    connectWS();
+
+    // --- Запуск торговли ---
+    function startTrade() {
+        fetch("http://" + location.hostname + ":8080/start_trade", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(params)
+        })
+        .then(resp=>resp.json())
+        .then(data=>{
+            if (data.error) {
+                alert("Ошибка: " + data.error);
+            }
+        })
+        .catch(()=>{
+            alert("Ошибка соединения с сервером");
+        });
+    }
+
+    // --- ВЫХОД (остановка Telegram-бота) ---
+    function exitTelegramBot() {
+        fetch("http://" + location.hostname + ":8080/stop_telegram", {method: "POST"})
+        .then(()=>{ alert("Telegram-бот остановлен"); });
+    }
+
+    updateDisplay();
+</script>
+</body>
+</html>
