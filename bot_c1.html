@@ -4,72 +4,79 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Панель управления</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body, html {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f0f2f5; /* Цвет фона как в Telegram */
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #355C7D 0%, #2A5298 100%);
+            min-height: 100vh;
             margin: 0;
             padding: 0;
-            min-height: 100vh;
-            color: #000;
         }
         .app-container {
-            background: #fff;
-            max-width: 500px;
-            margin: 0 auto;
-            padding: 20px;
-            min-height: calc(100vh - 40px);
+            background: rgba(255,255,255,0.96);
+            border-radius: 16px;
+            padding: 20px 16px 16px 16px;
+            margin: 30px auto 0 auto;
+            max-width: 480px;
+            box-shadow: 0 6px 30px rgba(50,60,80,0.13);
         }
-        .btn {
+        .param-block {
+            margin-bottom: 10px;
+        }
+        .custom-button, .rocket-button, .exit-button {
             width: 100%;
-            padding: 14px;
-            margin-bottom: 12px;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: 600;
+            min-height: 52px;
+            border-radius: 16px;
+            border: 2px solid #1e40af;
+            background: #f8fafc;
+            margin-bottom: 10px;
+            font-size: 1.17rem;
+            font-weight: bold;
+            color: #1e40af;
+        }
+        .rocket-button {
+            background: linear-gradient(90deg, #60a5fa 0%, #818cf8 100%);
+            color: #fff;
             border: none;
-            cursor: pointer;
-            text-align: left;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
         }
-        .btn-secondary {
-            background-color: #eef1f4;
-            color: #2a61b5;
-        }
-        .btn-primary {
-            text-align: center;
-            justify-content: center;
-            background-color: #2a81e8;
+        .exit-button {
+            margin-top: 20px;
+            background: #f87171;
             color: #fff;
+            border: none;
         }
-        .btn-danger {
-            text-align: center;
-            justify-content: center;
-            background-color: #eb5757;
-            color: #fff;
+        .input-field {
+            width: 100%;
+            padding: 12px;
+            border-radius: 12px;
+            border: 2px solid #818cf8;
+            margin-bottom: 10px;
+            font-size: 1.1em;
         }
         .result-block {
             width: 100%;
-            height: 280px;
-            background: #f3f4f6;
+            height: 320px;
+            background: #f1f5f9;
             border-radius: 10px;
-            margin-top: 16px;
-            padding: 12px;
-            box-sizing: border-box;
+            margin: 14px 0 0 0;
+            padding: 12px 8px 12px 8px;
             overflow-y: auto;
-            font-family: 'Menlo', 'Consolas', monospace;
-            font-size: 12px;
-            color: #111827;
+            font-family: 'Fira Mono', 'Consolas', monospace;
+            font-size: 1em;
+            color: #1e293b;
             display: flex;
-            flex-direction: column-reverse; /* Вывод логов снизу вверх */
+            flex-direction: column-reverse;
+        }
+        .result-line {
+            white-space: pre-wrap;
+            padding: 0;
+            margin-bottom: 2px;
         }
         .overlay-panel {
             position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(240, 242, 245, 0.95);
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(255,255,255,0.98);
             z-index: 10;
             display: flex; flex-direction: column;
             align-items: center; justify-content: center;
@@ -77,76 +84,69 @@
             transition: opacity 0.2s;
         }
         .overlay-panel.active { opacity: 1; visibility: visible; }
-        .input-field {
-            width: 100%;
-            padding: 12px;
-            border-radius: 12px;
-            border: 2px solid #aab6c4;
-            margin-bottom: 10px;
-            font-size: 16px;
-            box-sizing: border-box;
-        }
-        #balance-display {
-            text-align: center;
-            font-size: 14px;
-            padding: 10px;
-            background-color: #eef1f4;
-            color: #333;
-            border-radius: 12px;
-            font-weight: 500;
-            margin-bottom: 16px;
-        }
     </style>
 </head>
 <body>
-<div id="app-container" class="app-container">
-    <button class="btn btn-secondary" onclick="showOverlay('pair')">Пара: <span id="display_pair"></span></button>
-    <button class="btn btn-secondary" onclick="showOverlay('action')">Действие: <span id="display_action"></span></button>
-    <button class="btn btn-secondary" onclick="showInputOverlay('profit')">Прибыль %: <span id="display_profit"></span></button>
-    <button class="btn btn-secondary" onclick="showInputOverlay('loss')">Убыток %: <span id="display_loss"></span></button>
-    <button class="btn btn-secondary" onclick="showOverlay('total')">Всего %: <span id="display_total"></span></button>
-    
-    <div id="balance-display">Загрузка данных...</div>
-
-    <button class="btn btn-primary" id="start-btn" onclick="startTrade()">🚀 СТАРТ</button>
-
-    <div class="result-block" id="result-block"></div>
-    <button class="btn btn-danger" onclick="exitAndClose()">ВЫХОД</button>
-
+<div class="app-container" id="app">
+    <div id="main-panel-content">
+        <div class="param-block">
+            <button class="custom-button" onclick="showOverlay('pair')">Пара: <span id="display_pair">ETHFDUSD</span></button>
+        </div>
+        <div class="param-block">
+            <button class="custom-button" onclick="showOverlay('action')">Действие: <span id="display_action">buy</span></button>
+        </div>
+        <div class="param-block">
+            <button class="custom-button" onclick="showInputOverlay('profit')">Прибыль %: <span id="display_profit">0.2</span></button>
+        </div>
+        <div class="param-block">
+            <button class="custom-button" onclick="showInputOverlay('loss')">Убыток %: <span id="display_loss">0.1</span></button>
+        </div>
+        <div class="param-block">
+            <button class="custom-button" onclick="showOverlay('total')">Всего %: <span id="display_total">50</span></button>
+        </div>
+        <div class="param-block">
+            <button class="rocket-button" id="start-btn" onclick="startTrade()" style="margin-bottom:0;">СТАРТ</button>
+        </div>
+        <div class="result-block" id="result-block"></div>
+        <button class="exit-button" onclick="exitTelegramBot()">ВЫХОД</button>
+    </div>
     <div id="overlay-pair" class="overlay-panel">
-        <div style="width:90%;max-width:350px;">
-            <button class="btn btn-secondary" onclick="selectPair('BTCFDUSD')">BTCFDUSD</button>
-            <button class="btn btn-secondary" onclick="selectPair('ETHFDUSD')">ETHFDUSD</button>
-            <button class="btn btn-primary" onclick="hideAllOverlays()">Назад</button>
+        <div style="width:100%;max-width:350px;text-align:center;">
+            <h3 style="margin-bottom:18px;">Выберите пару</h3>
+            <button class="custom-button" onclick="selectPair('BTCFDUSD')">BTCFDUSD</button>
+            <button class="custom-button" onclick="selectPair('ETHFDUSD')">ETHFDUSD</button>
+            <button class="custom-button" onclick="hideAllOverlays()">Назад</button>
         </div>
     </div>
     <div id="overlay-action" class="overlay-panel">
-         <div style="width:90%;max-width:350px;">
-            <button class="btn btn-secondary" onclick="selectAction('buy')">Купить</button>
-            <button class="btn btn-secondary" onclick="selectAction('sell')">Продать</button>
-            <button class="btn btn-primary" onclick="hideAllOverlays()">Назад</button>
+        <div style="width:100%;max-width:350px;text-align:center;">
+            <h3 style="margin-bottom:18px;">Действие</h3>
+            <button class="custom-button" onclick="selectAction('buy')">Купить</button>
+            <button class="custom-button" onclick="selectAction('sell')">Продать</button>
+            <button class="custom-button" onclick="hideAllOverlays()">Назад</button>
         </div>
     </div>
     <div id="overlay-total" class="overlay-panel">
-         <div style="width:90%;max-width:350px;">
-            <button class="btn btn-secondary" onclick="selectTotal(30)">30</button>
-            <button class="btn btn-secondary" onclick="selectTotal(50)">50</button>
-            <button class="btn btn-secondary" onclick="selectTotal(100)">100</button>
-            <button class="btn btn-primary" onclick="hideAllOverlays()">Назад</button>
+        <div style="width:100%;max-width:350px;text-align:center;">
+            <h3 style="margin-bottom:18px;">Всего (%)</h3>
+            <button class="custom-button" onclick="selectTotal(30)">30</button>
+            <button class="custom-button" onclick="selectTotal(50)">50</button>
+            <button class="custom-button" onclick="selectTotal(100)">100</button>
+            <button class="custom-button" onclick="hideAllOverlays()">Назад</button>
         </div>
     </div>
     <div id="overlay-input" class="overlay-panel">
-        <div style="width:90%;max-width:350px;">
-            <h3 id="input-label" style="text-align:center; margin-bottom:18px;"></h3>
+        <div style="width:100%;max-width:350px;text-align:center;">
+            <h3 id="input-label" style="margin-bottom:18px;"></h3>
             <input id="input-value" class="input-field" type="number" step="any">
-            <button class="btn btn-primary" onclick="confirmInput()">OK</button>
-            <button class="btn btn-secondary" onclick="hideAllOverlays()">Назад</button>
+            <button class="custom-button" onclick="confirmInput()">OK</button>
+            <button class="custom-button" onclick="hideAllOverlays()">Назад</button>
         </div>
     </div>
 </div>
 <script>
-    // --- КОНФИГУРАЦИЯ ---
-    const API_HOST = "https://0570da370db6.ngrok-free.app"; // <-- Убедитесь, что адрес верный!
+    // Укажите адрес вашего сервера (например, ngrok)
+    const API_HOST = "https://0570da370db6.ngrok-free.app";
     
     let params = {
         pair: "ETHFDUSD", action: "buy",
@@ -154,49 +154,59 @@
     };
     let ws = null, reconnectTimeout = null;
 
-    // --- ФУНКЦИИ ИНТЕРФЕЙСА ---
     function updateDisplay() {
-        for (const key in params) {
-            document.getElementById(`display_${key}`).textContent = params[key];
-        }
+        document.getElementById('display_pair').textContent = params.pair;
+        document.getElementById('display_action').textContent = params.action;
+        document.getElementById('display_profit').textContent = params.profit;
+        document.getElementById('display_loss').textContent = params.loss;
+        document.getElementById('display_total').textContent = params.total;
     }
-    function showOverlay(type) { document.getElementById(`overlay-${type}`).classList.add('active'); }
-    function hideAllOverlays() { document.querySelectorAll('.overlay-panel').forEach(el => el.classList.remove('active')); }
-    
+
+    function showOverlay(type) {
+        hideAllOverlays();
+        document.getElementById('overlay-' + type).classList.add('active');
+    }
+    function hideAllOverlays() {
+        document.querySelectorAll('.overlay-panel').forEach(el => el.classList.remove('active'));
+    }
     function showInputOverlay(field) {
+        hideAllOverlays();
         const labels = { profit: "Введите прибыль (%)", loss: "Введите убыток (%)" };
         document.getElementById('input-label').textContent = labels[field];
         const input = document.getElementById('input-value');
         input.value = params[field];
         input.dataset.field = field;
-        showOverlay('input');
+        document.getElementById('overlay-input').classList.add('active');
     }
-
     function confirmInput() {
-        const input = document.getElementById('input-value');
-        const field = input.dataset.field;
-        if (!input.value || isNaN(input.value)) return;
-        params[field] = Number(input.value);
+        const field = document.getElementById('input-value').dataset.field;
+        const val = document.getElementById('input-value').value;
+        if (!val || isNaN(val)) return;
+        params[field] = Number(val);
         hideAllOverlays();
         updateDisplay();
     }
-
     function selectPair(pair) {
         params.pair = pair;
         hideAllOverlays();
         updateDisplay();
         fetchAndShowBalance();
     }
-    function selectAction(action) { params.action = action; hideAllOverlays(); updateDisplay(); }
-    function selectTotal(val) { params.total = val; hideAllOverlays(); updateDisplay(); }
+    function selectAction(action) {
+        params.action = action;
+        hideAllOverlays();
+        updateDisplay();
+    }
+    function selectTotal(val) {
+        params.total = val;
+        hideAllOverlays();
+        updateDisplay();
+    }
 
-    // --- СЕТЕВЫЕ ЗАПРОСЫ ---
     async function fetchAndShowBalance() {
-        const balanceDisplay = document.getElementById('balance-display');
-        balanceDisplay.textContent = "Загрузка баланса...";
-
+        setResult("Загрузка баланса...");
         if (!window.Telegram?.WebApp?.initData) {
-            balanceDisplay.textContent = "Ошибка: нет данных Telegram для аутентификации.";
+            setResult("Ошибка: Не удалось получить данные Telegram для аутентификации.");
             return;
         }
         try {
@@ -204,101 +214,89 @@
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    "ngrok-skip-browser-warning": "true" // 3. ВАЖНЫЙ ЗАГОЛОВОК ДЛЯ NGROK
+                    "ngrok-skip-browser-warning": "true" // НЕОБХОДИМЫЙ ЗАГОЛОВОК
                 },
                 body: JSON.stringify({
-                    initData: window.Telegram.WebApp.initData,
+                    initData: window.Telegram.WebApp.initData, // НЕОБХОДИМЫЕ ДАННЫЕ
                     pair: params.pair
                 })
             });
-
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${await resp.text()}`);
-
             const data = await resp.json();
-            if (data.error) throw new Error(data.error);
-
-            balanceDisplay.innerHTML = `<b>${data.base}:</b> ${parseFloat(data.base_balance).toFixed(6)} | <b>${data.quote}:</b> ${parseFloat(data.quote_balance).toFixed(2)}`;
+            if (data.error) setResult(`Ошибка: ${data.error}`);
+            else setResult(`Баланс:\n${data.base}: ${data.base_balance}\n${data.quote}: ${data.quote_balance}`);
         } catch (e) {
-            console.error("Ошибка при запросе баланса:", e); // Улучшенное логирование
-            balanceDisplay.textContent = "⚠️ Ошибка загрузки баланса";
+            console.error(e);
+            setResult("Ошибка соединения с сервером (баланс)");
         }
     }
-
-    async function startTrade() {
-        setResult("Отправка команды на старт...");
-        if (!window.Telegram?.WebApp?.initData) {
-            setResult("Ошибка: нет данных Telegram для аутентификации.");
-            return;
-        }
-        try {
-            const resp = await fetch(`${API_HOST}/start_trade`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "ngrok-skip-browser-warning": "true"
-                },
-                body: JSON.stringify({
-                    ...params,
-                    initData: window.Telegram.WebApp.initData
-                })
-            });
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${await resp.text()}`);
-            const data = await resp.json();
-            if (data.error) throw new Error(data.error);
-        } catch(e) {
-            console.error("Ошибка старта торговли:", e);
-            setResult(`⚠️ Ошибка: ${e.message}`);
-        }
-    }
-
-    function exitAndClose() {
-        setResult("Остановка бота и закрытие панели...");
-        fetch(`${API_HOST}/stop_telegram`, { 
-            method: "POST", 
-            headers: { "ngrok-skip-browser-warning": "true" }
-        })
-        .catch(e => console.error("Не удалось остановить бота:", e))
-        .finally(() => {
-            // 4. ЗАКРЫТИЕ ПРИЛОЖЕНИЯ
-            window.Telegram?.WebApp?.close();
-        });
-    }
-
-    // --- WEBSOCKET И ЛОГИ ---
-    function setResult(text) {
-        const block = document.getElementById("result-block");
-        block.innerHTML = "";
-        text.split("\n").forEach(line => {
-            if (!line.trim()) return;
-            const div = document.createElement("div");
-            div.textContent = line;
-            block.appendChild(div);
-        });
-    }
-
+    
     function connectWS() {
         if (ws) ws.close();
         const ws_host = API_HOST.replace(/^http/, 'ws');
         ws = new WebSocket(`${ws_host}/ws`);
         
-        ws.onopen = () => setResult("Соединение с логами установлено.");
+        ws.onopen = () => console.log("WebSocket connected");
         ws.onmessage = (event) => setResult(event.data);
         ws.onclose = () => {
+            console.log("WebSocket closed, reconnecting...");
             clearTimeout(reconnectTimeout);
             reconnectTimeout = setTimeout(connectWS, 3000);
         };
-        ws.onerror = (err) => console.error('WebSocket Error:', err);
+        ws.onerror = (err) => console.error('WebSocket Error: ', err);
+    }
+    
+    function setResult(text) {
+        const block = document.getElementById("result-block");
+        block.innerHTML = "";
+        if (text) {
+            text.split("\n").forEach(line => {
+                if (line.trim().length > 0) {
+                    const div = document.createElement("div");
+                    div.className = "result-line";
+                    div.textContent = line;
+                    block.appendChild(div);
+                }
+            });
+        }
     }
 
-    // --- ИНИЦИАЛИЗАЦИЯ ---
+    function startTrade() {
+        if (!window.Telegram?.WebApp?.initData) {
+            setResult("Ошибка: Не удалось получить данные Telegram для аутентификации.");
+            return;
+        }
+        fetch(`${API_HOST}/start_trade`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "ngrok-skip-browser-warning": "true" // НЕОБХОДИМЫЙ ЗАГОЛОВОК
+            },
+            body: JSON.stringify({
+                ...params,
+                initData: window.Telegram.WebApp.initData // НЕОБХОДИМЫЕ ДАННЫЕ
+            })
+        })
+        .then(resp => resp.json())
+        .then(data => {
+            if (data.error) setResult(`Ошибка: ${data.error}`);
+        })
+        .catch((e) => {
+            console.error(e);
+            setResult("Ошибка соединения с сервером");
+        });
+    }
+
+    function exitTelegramBot() {
+        fetch(`${API_HOST}/stop_telegram`, { 
+            method: "POST",
+            headers: { "ngrok-skip-browser-warning": "true" }
+        })
+        .then(() => setResult("Telegram-бот остановлен"));
+    }
+
     document.addEventListener("DOMContentLoaded", () => {
-        const tg = window.Telegram?.WebApp;
-        if (tg) {
-            tg.ready();
-            tg.expand(); // Раскрыть приложение на весь экран
-            document.body.style.backgroundColor = tg.themeParams.bg_color || '#f0f2f5';
-            document.body.style.color = tg.themeParams.text_color || '#000';
-            document.getElementById('app-container').style.backgroundColor = tg.themeParams.secondary_bg_color || '#fff';
+        if (window.Telegram && window.Telegram.WebApp) {
+             Telegram.WebApp.ready();
         }
         updateDisplay();
         fetchAndShowBalance();
