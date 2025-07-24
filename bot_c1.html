@@ -90,7 +90,6 @@
 </head>
 <body>
 <div class="app-container" id="app">
-    <!-- Главное меню -->
     <div id="main-panel-content">
         <div class="param-block">
             <button class="custom-button" onclick="showOverlay('pair')">Пара: <span id="display_pair">ETHFDUSD</span></button>
@@ -113,7 +112,6 @@
         <div class="result-block" id="result-block"></div>
         <button class="exit-button" onclick="exitTelegramBot()">ВЫХОД</button>
     </div>
-    <!-- Overlays -->
     <div id="overlay-pair" class="overlay-panel">
         <div style="width:100%;max-width:350px;text-align:center;">
             <h3 style="margin-bottom:18px;">Выберите пару</h3>
@@ -150,25 +148,18 @@
     </div>
 </div>
 <script>
-    // Используем только локальную сеть!
+    // Укажите адрес вашего сервера (например, ngrok)
     const API_HOST = "https://0570da370db6.ngrok-free.app";
+    
     let params = {
         pair: "ETHFDUSD",
         action: "buy",
         profit: 0.2,
         loss: 0.1,
-        total: 50,
-        chat_id: null
+        total: 50
     };
     let ws = null;
     let reconnectTimeout = null;
-
-    if (window.Telegram && window.Telegram.WebApp && Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user) {
-        params.chat_id = Telegram.WebApp.initDataUnsafe.user.id;
-    }
-    if (!params.chat_id) {
-        params.chat_id = "123456789";
-    }
 
     function updateDisplay() {
         document.getElementById('display_pair').textContent = params.pair;
@@ -220,14 +211,21 @@
         updateDisplay();
     }
 
-    // --- Запрос баланса после выбора пары ---
+    // --- ИСПРАВЛЕНО: Запрос баланса с безопасной аутентификацией ---
     async function fetchAndShowBalance() {
         setResult("Загрузка баланса...");
+        if (!window.Telegram || !window.Telegram.WebApp || !window.Telegram.WebApp.initData) {
+            setResult("Ошибка: Не удалось получить данные Telegram для аутентификации.");
+            return;
+        }
         try {
             const resp = await fetch(API_HOST + "/get_balance", {
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({chat_id: params.chat_id, pair: params.pair})
+                body: JSON.stringify({
+                    initData: window.Telegram.WebApp.initData,
+                    pair: params.pair
+                })
             });
             const data = await resp.json();
             if (data.error) setResult("Ошибка: " + data.error);
@@ -242,16 +240,23 @@
     // --- WebSocket для логов ---
     function connectWS() {
         if (ws) { ws.close(); }
-        ws = new WebSocket("ws://https://0570da370db6.ngrok-free.app/ws");
-        ws.onopen = ()=>{};
+        // ИСПРАВЛЕНО: протокол wss:// для защищенного соединения
+        const ws_host = API_HOST.replace(/^http/, 'ws');
+        ws = new WebSocket(ws_host + "/ws");
+        
+        ws.onopen = ()=>{ console.log("WebSocket connected"); };
         ws.onmessage = function(event) {
             setResult(event.data);
         };
         ws.onclose = function() {
+            console.log("WebSocket closed, reconnecting...");
+            clearTimeout(reconnectTimeout);
             reconnectTimeout = setTimeout(connectWS, 3000);
         };
+        ws.onerror = function(err) {
+            console.error('WebSocket Error: ', err);
+        }
     }
-    connectWS();
 
     // --- Вывод в результат ---
     function setResult(text) {
@@ -270,12 +275,19 @@
         }
     }
 
-    // --- Запуск торговли ---
+    // --- ИСПРАВЛЕНО: Запуск торговли с безопасной аутентификацией ---
     function startTrade() {
+        if (!window.Telegram || !window.Telegram.WebApp || !window.Telegram.WebApp.initData) {
+            setResult("Ошибка: Не удалось получить данные Telegram для аутентификации.");
+            return;
+        }
         fetch(API_HOST + "/start_trade", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify(params)
+            body: JSON.stringify({
+                ...params,
+                initData: window.Telegram.WebApp.initData
+            })
         })
         .then(resp=>resp.json())
         .then(data=>{
@@ -294,9 +306,16 @@
         .then(()=>{ setResult("Telegram-бот остановлен"); });
     }
 
-    updateDisplay();
-    // Можно сразу показать баланс по умолчанию
-    fetchAndShowBalance();
+    // Инициализация при загрузке
+    document.addEventListener("DOMContentLoaded", () => {
+        if (window.Telegram && window.Telegram.WebApp) {
+             Telegram.WebApp.ready();
+        }
+        updateDisplay();
+        fetchAndShowBalance(); // Показать баланс по умолчанию
+        connectWS(); // Подключиться к логам
+    });
+
 </script>
 </body>
 </html>
