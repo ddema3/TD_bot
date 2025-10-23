@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQUAD Trade Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Шрифт по умолчанию для Telegram Web App */
+        body {
+            font-family: 'Inter', sans-serif;
+            /* Фон в стиле футуристической сетки / темного пространства */
+            background: #111827; /* Dark Slate Gray */
+            color: #E5E7EB; /* Light Gray text */
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+        }
+        .app-container {
+            /* Темный, почти черный фон с легкой прозрачностью */
+            background: rgba(17, 24, 39, 0.95);
+            border-radius: 20px;
+            padding: 24px 16px 16px 16px;
+            margin: 15px auto 15px auto;
+            max-width: 480px;
+            /* Неоновая синяя тень для эффекта свечения */
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.3), 0 0 5px rgba(59, 130, 246, 0.5);
+            border: 1px solid #3B82F6; /* Акцентная рамка */
+        }
+        
+        /* Стиль для блока с параметрами */
+        .param-block {
+            margin-bottom: 12px;
+            position: relative;
+        }
+        
+        /* Базовый стиль кнопки (настройки) */
+        .squad-button {
+            width: 100%;
+            min-height: 56px;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 700; /* Semi-bold */
+            transition: all 0.2s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 16px;
+            background: #1F2937; /* Dark Gray */
+            color: #9CA3AF; /* Muted text */
+            border: 1px solid #374151; /* Separator */
+        }
+        .squad-button span {
+            color: #3B82F6; /* Neon Blue value */
+            font-weight: 800; /* Extra-bold */
+        }
+        .squad-button:hover {
+            background: #374151;
+        }
+
+        /* Кнопка СТАРТ (Rocket) */
+        .rocket-button {
+            width: 100%;
+            min-height: 64px; /* Чуть выше */
+            border-radius: 16px;
+            font-size: 1.4rem;
+            font-weight: 900; /* Black */
+            color: #000;
+            /* Яркий, неоновый градиент */
+            background: linear-gradient(90deg, #3B82F6 0%, #60A5FA 100%);
+            border: 2px solid #BFDBFE;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.7); /* Сильное неоновое свечение */
+            margin-top: 10px;
+            margin-bottom: 15px;
+        }
+
+        /* Кнопка ВЫХОД (Exit) */
+        .exit-button {
+            width: 100%;
+            min-height: 48px;
+            border-radius: 12px;
+            background: #DC2626; /* Red */
+            color: #fff;
+            font-weight: 700;
+            border: none;
+            margin-top: 20px;
+            box-shadow: 0 0 8px rgba(220, 38, 38, 0.4);
+        }
+
+        /* Поле ввода */
+        .input-field {
+            width: 100%;
+            padding: 12px;
+            border-radius: 12px;
+            border: 2px solid #60A5FA;
+            background: #1F2937; /* Темный фон */
+            color: #E5E7EB;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+            text-align: center;
+        }
+
+        /* Блок с логами (Консоль) */
+        .result-block {
+            width: 100%;
+            height: 300px;
+            background: #000; /* Чистый черный */
+            border-radius: 10px;
+            margin: 14px 0 0 0;
+            padding: 10px;
+            overflow-y: auto;
+            font-family: 'Fira Mono', 'Consolas', monospace;
+            font-size: 0.9em;
+            color: #10B981; /* Неоновый зеленый для логов */
+            display: flex;
+            flex-direction: column-reverse; /* Логи внизу */
+            border: 1px solid #10B981;
+            box-shadow: inset 0 0 5px rgba(16, 185, 129, 0.3); /* Внутреннее свечение */
+        }
+        .result-line {
+            white-space: pre-wrap;
+            padding: 1px 0;
+            margin-bottom: 2px;
+            line-height: 1.2;
+        }
+        
+        /* Всплывающие панели */
+        .overlay-panel {
+            background: rgba(17, 24, 39, 0.98); /* Почти черный, немного прозрачный */
+            color: #E5E7EB;
+            /* Остальные стили из вашего кода сохраняются */
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 10; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            opacity: 0; visibility: hidden; transition: opacity 0.2s;
+        }
+        .overlay-panel h3 {
+             color: #60A5FA; /* Неоновый заголовок */
+             font-size: 1.5rem;
+             font-weight: 900;
+             text-shadow: 0 0 5px rgba(96, 165, 250, 0.7);
+        }
+        /* Стиль кнопок внутри оверлея */
+        .overlay-panel .squad-button {
+             background: #374151; 
+             color: #E5E7EB;
+             border: 1px solid #60A5FA;
+        }
+        .overlay-panel .squad-button:hover {
+             background: #4B5563;
+        }
+
+    </style>
+</head>
+<body>
+<div class="app-container" id="app">
+    <div id="main-panel-content">
+        <h2 class="text-xl font-extrabold text-center mb-6 text-indigo-400">⚡ SQUAD TRADING PANEL ⚡</h2>
+        
+        <div class="param-block">
+            <button class="squad-button" onclick="showOverlay('pair')">
+                <span>ПАРА:</span>
+                <span id="display_pair" class="font-mono">ETHFDUSD</span>
+            </button>
+        </div>
+        <div class="param-block">
+            <button class="squad-button" onclick="showOverlay('action')">
+                <span>ДЕЙСТВИЕ:</span>
+                <span id="display_action" class="uppercase">BUY</span>
+            </button>
+        </div>
+        <div class="param-block">
+            <button class="squad-button" onclick="showInputOverlay('profit')">
+                <span>ПРИБЫЛЬ (%):</span>
+                <span id="display_profit">0.2</span>
+            </button>
+        </div>
+        <div class="param-block">
+            <button class="squad-button" onclick="showInputOverlay('loss')">
+                <span>УБЫТОК (%):</span>
+                <span id="display_loss">0.1</span>
+            </button>
+        </div>
+        <div class="param-block">
+            <button class="squad-button" onclick="showOverlay('total')">
+                <span>ДЕПОЗИТ (%):</span>
+                <span id="display_total">50</span>
+            </button>
+        </div>
+        
+        <div class="param-block">
+            <button class="rocket-button" id="start-btn" onclick="startTrade()">
+                ЗАПУСК ТОРГОВЛИ
+            </button>
+        </div>
+        
+        <h3 class="text-sm font-bold mt-4 mb-2 text-green-400">CONSOL LOGS:</h3>
+        <div class="result-block" id="result-block"></div>
+        
+        <button class="exit-button" onclick="exitTelegramBot()">ЗАВЕРШИТЬ СЕССИЮ</button>
+    </div>
+    
+    <div id="overlay-pair" class="overlay-panel">
+        <div style="width:100%;max-width:350px;text-align:center;">
+            <h3 style="margin-bottom:25px;">ВЫБЕРИТЕ АКТИВ</h3>
+            <button class="squad-button mb-4" onclick="selectPair('BTCFDUSD')">BTCFDUSD</button>
+            <button class="squad-button mb-4" onclick="selectPair('ETHFDUSD')">ETHFDUSD</button>
+            <button class="squad-button mb-4" onclick="selectPair('BNBFDUSD')">BNBFDUSD</button>
+            <button class="squad-button mt-6" onclick="hideAllOverlays()">НАЗАД</button>
+        </div>
+    </div>
+    
+    <div id="overlay-action" class="overlay-panel">
+        <div style="width:100%;max-width:350px;text-align:center;">
+            <h3 style="margin-bottom:25px;">ВЫБЕРИТЕ ДЕЙСТВИЕ</h3>
+            <button class="squad-button mb-4" onclick="selectAction('buy')">КУПИТЬ (LONG)</button>
+            <button class="squad-button mb-4" onclick="selectAction('sell')">ПРОДАТЬ (SHORT)</button>
+            <button class="squad-button mt-6" onclick="hideAllOverlays()">НАЗАД</button>
+        </div>
+    </div>
+    
+    <div id="overlay-total" class="overlay-panel">
+        <div style="width:100%;max-width:350px;text-align:center;">
+            <h3 style="margin-bottom:25px;">ДОЛЯ ДЕПОЗИТА (%)</h3>
+            <button class="squad-button mb-4" onclick="selectTotal(30)">30%</button>
+            <button class="squad-button mb-4" onclick="selectTotal(50)">50%</button>
+            <button class="squad-button mb-4" onclick="selectTotal(100)">100%</button>
+            <button class="squad-button mt-6" onclick="hideAllOverlays()">НАЗАД</button>
+        </div>
+    </div>
+    
+    <div id="overlay-input" class="overlay-panel">
+        <div style="width:100%;max-width:350px;text-align:center;">
+            <h3 id="input-label" style="margin-bottom:20px;"></h3>
+            <input id="input-value" class="input-field" type="number" step="any" placeholder="Введите значение...">
+            <button class="rocket-button mt-4" style="min-height: 52px;" onclick="confirmInput()">ПОДТВЕРДИТЬ</button>
+            <button class="squad-button mt-2" onclick="hideAllOverlays()">ОТМЕНА</button>
+        </div>
+    </div>
+</div>
+<script>
+    // --- Вся ваша JavaScript логика сохранена без изменений ---
+    
+    // Укажите адрес вашего сервера (например, ngrok)
+    const API_HOST = "https://ваш.доменное.имя"; // !!! ИЗМЕНИТЕ ЭТО НА ВАШ ДОМЕН !!!
+    
+    let params = {
+        pair: "ETHFDUSD", action: "buy",
+        profit: 0.2, loss: 0.1, total: 50
+    };
+    let ws = null, reconnectTimeout = null;
+
+    function updateDisplay() {
+        document.getElementById('display_pair').textContent = params.pair;
+        document.getElementById('display_action').textContent = params.action;
+        document.getElementById('display_profit').textContent = params.profit;
+        document.getElementById('display_loss').textContent = params.loss;
+        document.getElementById('display_total').textContent = params.total;
+    }
+
+    function showOverlay(type) {
+        hideAllOverlays();
+        document.getElementById('overlay-' + type).classList.add('active');
+    }
+    function hideAllOverlays() {
+        document.querySelectorAll('.overlay-panel').forEach(el => el.classList.remove('active'));
+    }
+    function showInputOverlay(field) {
+        hideAllOverlays();
+        const labels = { profit: "Введите прибыль (%)", loss: "Введите убыток (%)" };
+        document.getElementById('input-label').textContent = labels[field];
+        const input = document.getElementById('input-value');
+        input.value = params[field];
+        input.dataset.field = field;
+        document.getElementById('overlay-input').classList.add('active');
+    }
+    function confirmInput() {
+        const field = document.getElementById('input-value').dataset.field;
+        const val = document.getElementById('input-value').value;
+        if (!val || isNaN(val)) return;
+        params[field] = Number(val);
+        hideAllOverlays();
+        updateDisplay();
+    }
+    function selectPair(pair) {
+        params.pair = pair;
+        hideAllOverlays();
+        updateDisplay();
+        fetchAndShowBalance();
+    }
+    function selectAction(action) {
+        params.action = action;
+        hideAllOverlays();
+        updateDisplay();
+    }
+    function selectTotal(val) {
+        params.total = val;
+        hideAllOverlays();
+        updateDisplay();
+    }
+
+    async function fetchAndShowBalance() {
+        setResult("Загрузка баланса...");
+        if (!window.Telegram?.WebApp?.initData) {
+            setResult("Ошибка: Не удалось получить данные Telegram для аутентификации.");
+            return;
+        }
+        try {
+            // УДАЛИТЕ "ngrok-skip-browser-warning" после того, как перейдете на свой домен!
+            const resp = await fetch(`${API_HOST}/get_balance`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "ngrok-skip-browser-warning": "true" 
+                },
+                body: JSON.stringify({
+                    initData: window.Telegram.WebApp.initData, 
+                    pair: params.pair
+                })
+            });
+            const data = await resp.json();
+            if (data.error) setResult(`Ошибка: ${data.error}`);
+            else setResult(`Баланс:\n${data.base}: ${data.base_balance}\n${data.quote}: ${data.quote_balance}`);
+        } catch (e) {
+            console.error(e);
+            setResult("Ошибка соединения с сервером (баланс)");
+        }
+    }
+    
+    function connectWS() {
+        if (ws) ws.close();
+        // ВАЖНО: заменяем http на ws, но сохраняем домен/IP
+        const ws_host = API_HOST.replace(/^http/, 'ws'); 
+        ws = new WebSocket(`${ws_host}/ws`);
+        
+        ws.onopen = () => console.log("WebSocket connected");
+        ws.onmessage = (event) => setResult(event.data);
+        ws.onclose = () => {
+            console.log("WebSocket closed, reconnecting...");
+            clearTimeout(reconnectTimeout);
+            reconnectTimeout = setTimeout(connectWS, 3000);
+        };
+        ws.onerror = (err) => console.error('WebSocket Error: ', err);
+    }
+    
+    function setResult(text) {
+        const block = document.getElementById("result-block");
+        // Очищаем блок, если это баланс или начальное сообщение
+        if (text && (text.includes("Баланс:") || text.includes("Загрузка"))) {
+             block.innerHTML = "";
+        }
+        
+        if (text) {
+            text.split("\n").reverse().forEach(line => {
+                if (line.trim().length > 0) {
+                    const div = document.createElement("div");
+                    div.className = "result-line";
+                    // Добавление временной метки для стиля GOMBLE
+                    const timestamp = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    div.textContent = `[${timestamp}] ${line}`;
+                    
+                    // Добавляем новый лог в начало (чтобы он был внизу видимой части)
+                    block.insertBefore(div, block.firstChild); 
+                }
+            });
+            // Прокрутка вниз (на самом деле вверх из-за flex-direction: column-reverse)
+            block.scrollTop = 0; 
+        }
+    }
+
+    function startTrade() {
+        if (!window.Telegram?.WebApp?.initData) {
+            setResult("Ошибка: Не удалось получить данные Telegram для аутентификации.");
+            return;
+        }
+        // УДАЛИТЕ "ngrok-skip-browser-warning" после того, как перейдете на свой домен!
+        fetch(`${API_HOST}/start_trade`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "ngrok-skip-browser-warning": "true" 
+            },
+            body: JSON.stringify({
+                ...params,
+                initData: window.Telegram.WebApp.initData 
+            })
+        })
+        .then(resp => resp.json())
+        .then(data => {
+            if (data.error) setResult(`Ошибка: ${data.error}`);
+        })
+        .catch((e) => {
+            console.error(e);
+            setResult("Ошибка соединения с сервером");
+        });
+    }
+
+    function exitTelegramBot() {
+        // УДАЛИТЕ "ngrok-skip-browser-warning" после того, как перейдете на свой домен!
+        fetch(`${API_HOST}/stop_telegram`, { 
+            method: "POST",
+            headers: { "ngrok-skip-browser-warning": "true" }
+        })
+        .then(() => {
+             setResult("Telegram-бот остановлен. Закрытие Web App...");
+             if (window.Telegram && window.Telegram.WebApp) {
+                 setTimeout(() => window.Telegram.WebApp.close(), 1000);
+             }
+        })
+        .catch(() => {
+             setResult("Не удалось отправить команду стоп. Закройте бота вручную.");
+             if (window.Telegram && window.Telegram.WebApp) {
+                 setTimeout(() => window.Telegram.WebApp.close(), 2000);
+             }
+        });
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        // Инициализация Telegram Web App
+        if (window.Telegram && window.Telegram.WebApp) {
+             Telegram.WebApp.ready();
+             // Устанавливаем цвет темы Web App для лучшей интеграции
+             Telegram.WebApp.setHeaderColor('#1F2937'); // dark gray
+             Telegram.WebApp.setBackgroundColor('#111827'); // dark slate
+        }
+        
+        updateDisplay();
+        fetchAndShowBalance();
+        connectWS();
+    });
+</script>
+</body>
+</html>
