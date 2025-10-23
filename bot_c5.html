@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Панель Ананасовых Котиков</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* ----------------------------------------------------------------- */
+        /* ФОН: КОТИКИ (1.jpg) */
+        /* ----------------------------------------------------------------- */
+        body {
+            font-family: 'Inter', sans-serif;
+            /* ИСПОЛЬЗУЕМ ВАШЕ ИЗОБРАЖЕНИЕ 1.jpg */
+            background: url('images/1.jpg') no-repeat center center fixed; 
+            background-size: cover;
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            color: #333; /* Базовый темный цвет текста */
+        }
+        .app-container {
+            /* Полупрозрачный белый для контраста с ярким фоном котиков */
+            background: rgba(255, 255, 255, 0.95); 
+            border-radius: 20px;
+            padding: 24px 16px 16px 16px;
+            margin: 15px auto 15px auto;
+            max-width: 480px;
+            box-shadow: 0 6px 30px rgba(0,0,0,0.3);
+            border: 3px solid #7E57C2; /* Фиолетовый акцент из палитры котиков */
+        }
+        
+        .param-block {
+            margin-bottom: 12px;
+            position: relative;
+        }
+        
+        /* ----------------------------------------------------------------- */
+        /* КНОПКИ: АНАНАСЫ (ananas.jpg) */
+        /* ----------------------------------------------------------------- */
+        .pineapple-button {
+            width: 100%;
+            min-height: 56px;
+            border-radius: 18px; 
+            font-size: 1.1rem;
+            font-weight: 700;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 16px;
+            
+            /* ИСПОЛЬЗУЕМ ВАШЕ ИЗОБРАЖЕНИЕ ananas.jpg */
+            background: url('images/ananas.jpg') no-repeat center center; 
+            background-size: cover; 
+            background-color: #FDD835; 
+            border: 3px solid #FFEB3B; /* Яркий желтый/золотой */
+            color: #FFFFFF; /* Белый текст для контраста с темным ананасом */
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8); /* Черная тень для читабельности */
+        }
+        .pineapple-button span {
+            color: #FFEB3B; /* Ярко-желтый для значений */
+            font-weight: 800;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+        }
+
+        /* Кнопка СТАРТ (Rocket) */
+        .rocket-button {
+            width: 100%;
+            min-height: 64px;
+            border-radius: 22px; 
+            font-size: 1.4rem;
+            font-weight: 900;
+            
+            /* ИСПОЛЬЗУЕМ ВАШЕ ИЗОБРАЖЕНИЕ ananas.jpg */
+            background: url('images/ananas.jpg') no-repeat center center; 
+            background-size: cover;
+            background-color: #FFB300; 
+            border: 4px solid #FFFFFF; /* Белая рамка для максимального контраста */
+            color: #000; /* Черный текст для START */
+            text-shadow: 1px 1px 3px rgba(255,255,255,0.7); 
+            margin-top: 10px;
+            margin-bottom: 15px;
+        }
+
+        /* Кнопка ВЫХОД (Exit) */
+        .exit-button {
+            width: 100%;
+            min-height: 48px;
+            border-radius: 12px;
+            background: #EF5350; 
+            color: #fff;
+            font-weight: 700;
+            border: none;
+            margin-top: 20px;
+            box-shadow: 0 0 8px rgba(239, 83, 80, 0.6);
+        }
+
+        /* Поле ввода */
+        .input-field {
+            width: 100%;
+            padding: 12px;
+            border-radius: 12px;
+            border: 2px solid #7E57C2;
+            background: rgba(255, 255, 255, 0.95);
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+            text-align: center;
+        }
+
+        /* Блок с логами (Консоль) */
+        .result-block {
+            width: 100%;
+            height: 300px;
+            background: rgba(0, 0, 0, 0.85); /* Темно-серый для читабельности логов */
+            border-radius: 10px;
+            margin: 14px 0 0 0;
+            padding: 10px;
+            overflow-y: auto;
+            font-family: 'Fira Mono', 'Consolas', monospace;
+            font-size: 0.9em;
+            color: #A5D6A7; /* Светло-зеленый (классический лог) */
+            display: flex;
+            flex-direction: column-reverse;
+            border: 1px solid #7E57C2;
+            box-shadow: inset 0 0 5px rgba(126, 87, 194, 0.3);
+        }
+        .result-line {
+            white-space: pre-wrap;
+            padding: 1px 0;
+            margin-bottom: 2px;
+            line-height: 1.2;
+        }
+        
+        /* Всплывающие панели */
+        .overlay-panel {
+            background: rgba(255, 255, 255, 0.98); 
+            color: #333;
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 10; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            opacity: 0; visibility: hidden; transition: opacity 0.2s;
+        }
+        .overlay-panel.active { opacity: 1; visibility: visible; }
+        .overlay-panel h3 {
+             color: #7E57C2; 
+             font-size: 1.5rem;
+             font-weight: 900;
+             text-shadow: 0 0 3px rgba(126, 87, 194, 0.5);
+        }
+        .overlay-panel .pineapple-button {
+             background-color: #FFE082; 
+             border: 1px solid #FFD700;
+        }
+
+    </style>
+</head>
+<body>
+<div class="app-container" id="app">
+    <div id="main-panel-content">
+        <h2 class="text-xl font-extrabold text-center mb-6 text-purple-700">🐱🍍 Панель Котиков и Ананасов 🍍🐱</h2>
+        
+        <div class="param-block">
+            <button class="pineapple-button" onclick="showOverlay('pair')">
+                <span>ПАРА:</span>
+                <span id="display_pair" class="font-mono">ETHFDUSD</span>
+            </button>
+        </div>
+        <div class="param-block">
+            <button class="pineapple-button" onclick="showOverlay('action')">
+                <span>ДЕЙСТВИЕ:</span>
+                <span id="display_action" class="uppercase">BUY</span>
+            </button>
+        </div>
+        <div class="param-block">
+            <button class="pineapple-button" onclick="showInputOverlay('profit')">
+                <span>ПРИБЫЛЬ (%):</span>
+                <span id="display_profit">0.2</span>
+            </button>
+        </div>
+        <div class="param-block">
+            <button class="pineapple-button" onclick="showInputOverlay('loss')">
+                <span>УБЫТОК (%):</span>
+                <span id="display_loss">0.1</span>
+            </button>
+        </div>
+        <div class="param-block">
+            <button class="pineapple-button" onclick="showOverlay('total')">
+                <span>ДЕПОЗИТ (%):</span>
+                <span id="display_total">50</span>
+            </button>
+        </div>
+        
+        <div class="param-block">
+            <button class="rocket-button" id="start-btn" onclick="startTrade()">
+                ЗАПУСК ТОРГОВЛИ
+            </button>
+        </div>
+        
+        <h3 class="text-sm font-bold mt-4 mb-2 text-purple-700">ЛОГИ:</h3>
+        <div class="result-block" id="result-block"></div>
+        
+        <button class="exit-button" onclick="exitTelegramBot()">ЗАВЕРШИТЬ СЕССИЮ</button>
+    </div>
+    
+    <div id="overlay-pair" class="overlay-panel">
+        <div style="width:100%;max-width:350px;text-align:center;">
+            <h3 style="margin-bottom:25px;">ВЫБЕРИТЕ АКТИВ</h3>
+            <button class="pineapple-button mb-4" onclick="selectPair('BTCFDUSD')">BTCFDUSD</button>
+            <button class="pineapple-button mb-4" onclick="selectPair('ETHFDUSD')">ETHFDUSD</button>
+            <button class="pineapple-button mb-4" onclick="selectPair('BNBFDUSD')">BNBFDUSD</button>
+            <button class="pineapple-button mt-6" onclick="hideAllOverlays()">НАЗАД</button>
+        </div>
+    </div>
+    
+    <div id="overlay-action" class="overlay-panel">
+        <div style="width:100%;max-width:350px;text-align:center;">
+            <h3 style="margin-bottom:25px;">ВЫБЕРИТЕ ДЕЙСТВИЕ</h3>
+            <button class="pineapple-button mb-4" onclick="selectAction('buy')">КУПИТЬ (LONG)</button>
+            <button class="pineapple-button mb-4" onclick="selectAction('sell')">ПРОДАТЬ (SHORT)</button>
+            <button class="pineapple-button mt-6" onclick="hideAllOverlays()">НАЗАД</button>
+        </div>
+    </div>
+    
+    <div id="overlay-total" class="overlay-panel">
+        <div style="width:100%;max-width:350px;text-align:center;">
+            <h3 style="margin-bottom:25px;">ДОЛЯ ДЕПОЗИТА (%)</h3>
+            <button class="pineapple-button mb-4" onclick="selectTotal(30)">30%</button>
+            <button class="pineapple-button mb-4" onclick="selectTotal(50)">50%</button>
+            <button class="pineapple-button mb-4" onclick="selectTotal(100)">100%</button>
+            <button class="pineapple-button mt-6" onclick="hideAllOverlays()">НАЗАД</button>
+        </div>
+    </div>
+    
+    <div id="overlay-input" class="overlay-panel">
+        <div style="width:100%;max-width:350px;text-align:center;">
+            <h3 id="input-label" style="margin-bottom:20px;"></h3>
+            <input id="input-value" class="input-field" type="number" step="any" placeholder="Введите значение...">
+            <button class="rocket-button mt-4" style="min-height: 52px;" onclick="confirmInput()">ПОДТВЕРДИТЬ</button>
+            <button class="pineapple-button mt-2" onclick="hideAllOverlays()">ОТМЕНА</button>
+        </div>
+    </div>
+</div>
+<script>
+    // --- Вся ваша JavaScript логика сохранена без изменений ---
+    
+    // !!! ЗАМЕНИТЕ ЭТО НА ВАШ ДОМЕН !!!
+    const API_HOST = "https://ваш.доменное.имя"; 
+    
+    let params = {
+        pair: "ETHFDUSD", action: "buy",
+        profit: 0.2, loss: 0.1, total: 50
+    };
+    let ws = null, reconnectTimeout = null;
+
+    function updateDisplay() {
+        document.getElementById('display_pair').textContent = params.pair;
+        document.getElementById('display_action').textContent = params.action;
+        document.getElementById('display_profit').textContent = params.profit;
+        document.getElementById('display_loss').textContent = params.loss;
+        document.getElementById('display_total').textContent = params.total;
+    }
+
+    function showOverlay(type) {
+        hideAllOverlays();
+        document.getElementById('overlay-' + type).classList.add('active');
+    }
+    function hideAllOverlays() {
+        document.querySelectorAll('.overlay-panel').forEach(el => el.classList.remove('active'));
+    }
+    function showInputOverlay(field) {
+        hideAllOverlays();
+        const labels = { profit: "Введите прибыль (%)", loss: "Введите убыток (%)" };
+        document.getElementById('input-label').textContent = labels[field];
+        const input = document.getElementById('input-value');
+        input.value = params[field];
+        input.dataset.field = field;
+        document.getElementById('overlay-input').classList.add('active');
+    }
+    function confirmInput() {
+        const field = document.getElementById('input-value').dataset.field;
+        const val = document.getElementById('input-value').value;
+        if (!val || isNaN(val)) return;
+        params[field] = Number(val);
+        hideAllOverlays();
+        updateDisplay();
+    }
+    function selectPair(pair) {
+        params.pair = pair;
+        hideAllOverlays();
+        updateDisplay();
+        fetchAndShowBalance();
+    }
+    function selectAction(action) {
+        params.action = action;
+        hideAllOverlays();
+        updateDisplay();
+    }
+    function selectTotal(val) {
+        params.total = val;
+        hideAllOverlays();
+        updateDisplay();
+    }
+
+    async function fetchAndShowBalance() {
+        setResult("Загрузка баланса...");
+        if (!window.Telegram?.WebApp?.initData) {
+            setResult("Ошибка: Не удалось получить данные Telegram для аутентификации.");
+            return;
+        }
+        try {
+            const resp = await fetch(`${API_HOST}/get_balance`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "ngrok-skip-browser-warning": "true" 
+                },
+                body: JSON.stringify({
+                    initData: window.Telegram.WebApp.initData, 
+                    pair: params.pair
+                })
+            });
+            const data = await resp.json();
+            if (data.error) setResult(`Ошибка: ${data.error}`);
+            else setResult(`Баланс:\n${data.base}: ${data.base_balance}\n${data.quote}: ${data.quote_balance}`);
+        } catch (e) {
+            console.error(e);
+            setResult("Ошибка соединения с сервером (баланс)");
+        }
+    }
+    
+    function connectWS() {
+        if (ws) ws.close();
+        const ws_host = API_HOST.replace(/^http/, 'ws'); 
+        ws = new WebSocket(`${ws_host}/ws`);
+        
+        ws.onopen = () => console.log("WebSocket connected");
+        ws.onmessage = (event) => setResult(event.data);
+        ws.onclose = () => {
+            console.log("WebSocket closed, reconnecting...");
+            clearTimeout(reconnectTimeout);
+            reconnectTimeout = setTimeout(connectWS, 3000);
+        };
+        ws.onerror = (err) => console.error('WebSocket Error: ', err);
+    }
+    
+    function setResult(text) {
+        const block = document.getElementById("result-block");
+        if (text && (text.includes("Баланс:") || text.includes("Загрузка"))) {
+             block.innerHTML = "";
+        }
+        
+        if (text) {
+            text.split("\n").reverse().forEach(line => {
+                if (line.trim().length > 0) {
+                    const div = document.createElement("div");
+                    div.className = "result-line";
+                    const timestamp = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    div.textContent = `[${timestamp}] ${line}`;
+                    block.insertBefore(div, block.firstChild); 
+                }
+            });
+            block.scrollTop = 0; 
+        }
+    }
+
+    function startTrade() {
+        if (!window.Telegram?.WebApp?.initData) {
+            setResult("Ошибка: Не удалось получить данные Telegram для аутентификации.");
+            return;
+        }
+        fetch(`${API_HOST}/start_trade`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "ngrok-skip-browser-warning": "true" 
+            },
+            body: JSON.stringify({
+                ...params,
+                initData: window.Telegram.WebApp.initData 
+            })
+        })
+        .then(resp => resp.json())
+        .then(data => {
+            if (data.error) setResult(`Ошибка: ${data.error}`);
+        })
+        .catch((e) => {
+            console.error(e);
+            setResult("Ошибка соединения с сервером");
+        });
+    }
+
+    function exitTelegramBot() {
+        fetch(`${API_HOST}/stop_telegram`, { 
+            method: "POST",
+            headers: { "ngrok-skip-browser-warning": "true" }
+        })
+        .then(() => {
+             setResult("Telegram-бот остановлен. Закрытие Web App...");
+             if (window.Telegram && window.Telegram.WebApp) {
+                 setTimeout(() => window.Telegram.WebApp.close(), 1000);
+             }
+        })
+        .catch(() => {
+             setResult("Не удалось отправить команду стоп. Закройте бота вручную.");
+             if (window.Telegram && window.Telegram.WebApp) {
+                 setTimeout(() => window.Telegram.WebApp.close(), 2000);
+             }
+        });
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        if (window.Telegram && window.Telegram.WebApp) {
+             Telegram.WebApp.ready();
+             // Устанавливаем цвета темы Web App
+             Telegram.WebApp.setHeaderColor('#FFECB3');
+             Telegram.WebApp.setBackgroundColor('#E0F2F7'); 
+        }
+        
+        updateDisplay();
+        fetchAndShowBalance();
+        connectWS();
+    });
+</script>
+</body>
+</html>
