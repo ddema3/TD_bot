@@ -66,14 +66,13 @@
             font-size: 1em;
             color: #1e293b;
             display: flex;
-            flex-direction: column-reverse; /* ВЫВОД СНИЗУ ВВЕРХ */
+            flex-direction: column-reverse;
         }
         .result-line {
             white-space: pre-wrap;
             padding: 0;
             margin-bottom: 2px;
         }
-        /* overlay styles */
         .overlay-panel {
             position: fixed;
             top: 0; left: 0; width: 100vw; height: 100vh;
@@ -85,12 +84,24 @@
             transition: opacity 0.2s;
         }
         .overlay-panel.active { opacity: 1; visibility: visible; }
-        .hidden { display: none; }
+
+        /* Diagnostic box */
+        .diag {
+            margin-top: 12px;
+            padding: 10px;
+            background: #fffbe6;
+            border: 1px solid #ffd966;
+            border-radius: 10px;
+            font-family: monospace;
+            font-size: 13px;
+            color: #222;
+            word-break: break-all;
+        }
+        .diag .label { font-weight: bold; margin-bottom: 6px; display:block; }
     </style>
 </head>
 <body>
 <div class="app-container" id="app">
-    <!-- Главное меню -->
     <div id="main-panel-content">
         <div class="param-block">
             <button class="custom-button" onclick="showOverlay('pair')">Пара: <span id="display_pair">ETHFDUSD</span></button>
@@ -112,8 +123,14 @@
         </div>
         <div class="result-block" id="result-block"></div>
         <button class="exit-button" onclick="exitTelegramBot()">ВЫХОД</button>
+
+        <!-- Diagnostic area -->
+        <div id="diagnostic" class="diag" aria-live="polite">
+            <span class="label">Диагностика WebApp / initData</span>
+            <div id="diag-content">Идет проверка...</div>
+        </div>
     </div>
-    <!-- Overlays -->
+
     <div id="overlay-pair" class="overlay-panel">
         <div style="width:100%;max-width:350px;text-align:center;">
             <h3 style="margin-bottom:18px;">Выберите пару</h3>
@@ -127,7 +144,6 @@
             <h3 style="margin-bottom:18px;">Действие</h3>
             <button class="custom-button" onclick="selectAction('buy')">Купить</button>
             <button class="custom-button" onclick="selectAction('sell')">Продать</button>
-            <button class="custom-button" onclick="selectAction('random')">Рандом</button>
             <button class="custom-button" onclick="hideAllOverlays()">Назад</button>
         </div>
     </div>
@@ -149,27 +165,14 @@
         </div>
     </div>
 </div>
-<script>
-    // --- Параметры, синхронизировать с backend ---
-    let params = {
-        pair: "ETHFDUSD",
-        action: "buy",
-        profit: 0.2,
-        loss: 0.1,
-        total: 50,
-        chat_id: null
-    };
-    let ws = null;
-    let reconnectTimeout = null;
 
-    // --- Telegram WebApp API (если есть) ---
-    if (window.Telegram && window.Telegram.WebApp && Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user) {
-        params.chat_id = Telegram.WebApp.initDataUnsafe.user.id;
-    }
-    // Fallback (dev): можно хардкодить chat_id
-    if (!params.chat_id) {
-        params.chat_id = "123456789";
-    }
+<script>
+    const API_HOST = ""; // оставляем пустым — фронт будет использовать origin
+    let params = {
+        pair: "ETHFDUSD", action: "buy",
+        profit: 0.2, loss: 0.1, total: 50
+    };
+    let ws = null, reconnectTimeout = null;
 
     function updateDisplay() {
         document.getElementById('display_pair').textContent = params.pair;
@@ -184,21 +187,20 @@
         document.getElementById('overlay-' + type).classList.add('active');
     }
     function hideAllOverlays() {
-        document.querySelectorAll('.overlay-panel').forEach(el=>el.classList.remove('active'));
+        document.querySelectorAll('.overlay-panel').forEach(el => el.classList.remove('active'));
     }
     function showInputOverlay(field) {
         hideAllOverlays();
-        let label = "";
-        if (field==="profit") label = "Введите прибыль (%)";
-        if (field==="loss") label = "Введите убыток (%)";
-        document.getElementById('input-label').textContent = label;
-        document.getElementById('input-value').value = params[field];
-        document.getElementById('input-value').setAttribute('data-field', field);
+        const labels = { profit: "Введите прибыль (%)", loss: "Введите убыток (%)" };
+        document.getElementById('input-label').textContent = labels[field];
+        const input = document.getElementById('input-value');
+        input.value = params[field];
+        input.dataset.field = field;
         document.getElementById('overlay-input').classList.add('active');
     }
     function confirmInput() {
-        const field = document.getElementById('input-value').getAttribute('data-field');
-        let val = document.getElementById('input-value').value;
+        const field = document.getElementById('input-value').dataset.field;
+        const val = document.getElementById('input-value').value;
         if (!val || isNaN(val)) return;
         params[field] = Number(val);
         hideAllOverlays();
@@ -208,6 +210,7 @@
         params.pair = pair;
         hideAllOverlays();
         updateDisplay();
+        fetchAndShowBalance();
     }
     function selectAction(action) {
         params.action = action;
@@ -220,58 +223,180 @@
         updateDisplay();
     }
 
-    // --- WebSocket для логов ---
+    function setResult(text) {
+        const block = document.getElementById("result-block");
+        block.innerHTML = "";
+        if (text) {
+            text.split("\n").forEach(line => {
+                if (line.trim().length > 0) {
+                    const div = document.createElement("div");
+                    div.className = "result-line";
+                    div.textContent = line;
+                    block.appendChild(div);
+                }
+            });
+        }
+    }
+
+    async function fetchAndShowBalance() {
+        setResult("Загрузка баланса...");
+        if (!window.Telegram?.WebApp?.initData) {
+            setResult("Ошибка: Не удалось получить данные Telegram для аутентификации.");
+            return;
+        }
+        try {
+            const resp = await fetch(`${(API_HOST || window.location.origin)}/get_balance`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "ngrok-skip-browser-warning": "true"
+                },
+                body: JSON.stringify({
+                    initData: window.Telegram.WebApp.initData,
+                    pair: params.pair
+                })
+            });
+            const data = await resp.json();
+            if (data.error) setResult(`Ошибка: ${data.error}`);
+            else setResult(`Баланс:\n${data.base}: ${data.base_balance}\n${data.quote}: ${data.quote_balance}`);
+        } catch (e) {
+            console.error(e);
+            setResult("Ошибка соединения с сервером (баланс)");
+        }
+    }
+
+    function wsUrlFromApiHost(apiHost) {
+        if (apiHost.startsWith("https://")) return apiHost.replace(/^https:\/\//, "wss://");
+        if (apiHost.startsWith("http://")) return apiHost.replace(/^http:\/\//, "ws://");
+        return (location.protocol === "https:" ? "wss://" : "ws://") + apiHost;
+    }
+
     function connectWS() {
-        if (ws) { ws.close(); }
-        ws = new WebSocket("ws://" + location.hostname + ":8080/ws");
-        ws.onopen = ()=>{};
-        ws.onmessage = function(event) {
-            const block = document.getElementById("result-block");
-            block.innerHTML = "";
-            if (event.data) {
-                const lines = event.data.split("\n");
-                // вывод снизу вверх (flex-direction: column-reverse)
-                lines.forEach(line=>{
-                    if (line.trim().length>0) {
-                        const div = document.createElement("div");
-                        div.className = "result-line";
-                        div.textContent = line;
-                        block.appendChild(div);
-                    }
-                });
-            }
-        };
-        ws.onclose = function() {
+        if (ws) ws.close();
+        const base_ws = wsUrlFromApiHost(API_HOST || window.location.origin);
+        const ws_url = `${base_ws.replace(/\/$/, "")}/ws`;
+        ws = new WebSocket(ws_url);
+
+        ws.onopen = () => console.log("WebSocket connected");
+        ws.onmessage = (event) => setResult(event.data);
+        ws.onclose = () => {
+            console.log("WebSocket closed, reconnecting...");
+            clearTimeout(reconnectTimeout);
             reconnectTimeout = setTimeout(connectWS, 3000);
         };
+        ws.onerror = (err) => console.error('WebSocket Error: ', err);
     }
-    connectWS();
 
-    // --- Запуск торговли ---
     function startTrade() {
-        fetch("http://" + location.hostname + ":8080/start_trade", {
+        if (!window.Telegram?.WebApp?.initData) {
+            setResult("Ошибка: Не удалось получить данные Telegram для аутентификации.");
+            return;
+        }
+        fetch(`${(API_HOST || window.location.origin)}/start_trade`, {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify(params)
+            headers: {
+                "Content-Type": "application/json",
+                "ngrok-skip-browser-warning": "true"
+            },
+            body: JSON.stringify({
+                ...params,
+                initData: window.Telegram.WebApp.initData
+            })
         })
-        .then(resp=>resp.json())
-        .then(data=>{
-            if (data.error) {
-                alert("Ошибка: " + data.error);
-            }
+        .then(resp => resp.json())
+        .then(data => {
+            if (data.error) setResult(`Ошибка: ${data.error}`);
+            else setResult("Запуск торговой операции: OK");
         })
-        .catch(()=>{
-            alert("Ошибка соединения с сервером");
+        .catch((e) => {
+            console.error(e);
+            setResult("Ошибка соединения с сервером");
         });
     }
 
-    // --- ВЫХОД (остановка Telegram-бота) ---
     function exitTelegramBot() {
-        fetch("http://" + location.hostname + ":8080/stop_telegram", {method: "POST"})
-        .then(()=>{ alert("Telegram-бот остановлен"); });
+        fetch(`${(API_HOST || window.location.origin)}/stop_telegram`, {
+            method: "POST",
+            headers: { "ngrok-skip-browser-warning": "true" }
+        })
+        .then(() => setResult("Telegram-бот остановлен"));
     }
 
-    updateDisplay();
+    // ---------------- Diagnostic logic ----------------
+    function diagShow(txt) {
+        try {
+            const el = document.getElementById('diag-content');
+            el.textContent = txt;
+        } catch (e) { console.log("diagShow error", e); }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        // Try to call Telegram.WebApp.ready() if present (no harm)
+        if (window.Telegram && window.Telegram.WebApp && typeof Telegram.WebApp.ready === "function") {
+            try { Telegram.WebApp.ready(); } catch (e) {}
+        }
+
+        updateDisplay();
+
+        // immediate diagnostics
+        const locationHref = window.location.href;
+        const ref = document.referrer;
+        const ua = navigator.userAgent || "";
+        let tgPresent = !!(window.Telegram && window.Telegram.WebApp);
+        let initData = null;
+        try {
+            if (tgPresent) {
+                initData = window.Telegram.WebApp.initData || window.Telegram.WebApp.initDataUnsafe?.data || null;
+            }
+        } catch (e) {
+            initData = null;
+        }
+
+        const diagObj = {
+            timestamp: new Date().toISOString(),
+            location: locationHref,
+            referrer: ref,
+            userAgent: ua,
+            telegramObjectPresent: tgPresent,
+            initDataPresent: !!initData,
+            initDataSnippet: initData ? (initData.length > 200 ? initData.slice(0,200) + "..." : initData) : null
+        };
+        diagShow(JSON.stringify(diagObj, null, 2));
+        console.log("WebApp diagnostic:", diagObj);
+
+        // wait a bit for possible delayed initData (check up to ~3s)
+        (function waitInit() {
+            let tries = 0, max = 12;
+            const t = setInterval(() => {
+                tries++;
+                let nowInit = null;
+                if (window.Telegram && window.Telegram.WebApp) {
+                    nowInit = window.Telegram.WebApp.initData || window.Telegram.WebApp.initDataUnsafe?.data || null;
+                }
+                if (nowInit) {
+                    const diagObj2 = Object.assign({}, diagObj, { note: "initData received after wait", initDataPresent: true, initDataSnippet: nowInit.length>200? nowInit.slice(0,200)+"...": nowInit });
+                    diagShow(JSON.stringify(diagObj2, null, 2));
+                    console.log("WebApp diagnostic (late):", diagObj2);
+                    clearInterval(t);
+                    // try balance and ws only if we have initData
+                    fetchAndShowBalance();
+                    connectWS();
+                    return;
+                }
+                if (tries >= max) {
+                    clearInterval(t);
+                    // no initData — leave diagnostic for user
+                    console.warn("initData not received after waiting.");
+                }
+            }, 250);
+        })();
+
+        // If initData already present immediately, proceed
+        if (initData) {
+            fetchAndShowBalance();
+            connectWS();
+        }
+    });
 </script>
 </body>
 </html>
