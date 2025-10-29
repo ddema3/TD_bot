@@ -1,180 +1,437 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Панель управления</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style> /* (стили как у вас) */ </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Панель управления</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #355C7D 0%, #2A5298 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+        }
+        .app-container {
+            background: rgba(255,255,255,0.96);
+            border-radius: 16px;
+            padding: 20px 16px 16px 16px;
+            margin: 30px auto 0 auto;
+            max-width: 480px;
+            box-shadow: 0 6px 30px rgba(50,60,80,0.13);
+        }
+        .param-block {
+            margin-bottom: 10px;
+        }
+        .custom-button, .rocket-button, .exit-button {
+            width: 100%;
+            min-height: 52px;
+            border-radius: 16px;
+            border: 2px solid #1e40af;
+            background: #f8fafc;
+            margin-bottom: 10px;
+            font-size: 1.17rem;
+            font-weight: bold;
+            color: #1e40af;
+        }
+        .rocket-button {
+            background: linear-gradient(90deg, #60a5fa 0%, #818cf8 100%);
+            color: #fff;
+            border: none;
+        }
+        .exit-button {
+            margin-top: 20px;
+            background: #f87171;
+            color: #fff;
+            border: none;
+        }
+        .input-field {
+            width: 100%;
+            padding: 12px;
+            border-radius: 12px;
+            border: 2px solid #818cf8;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+        .result-block {
+            width: 100%;
+            height: 320px;
+            background: #f1f5f9;
+            border-radius: 10px;
+            margin: 14px 0 0 0;
+            padding: 12px 8px 12px 8px;
+            overflow-y: auto;
+            font-family: 'Fira Mono', 'Consolas', monospace;
+            font-size: 1em;
+            color: #1e293b;
+            display: flex;
+            flex-direction: column-reverse;
+        }
+        .result-line {
+            white-space: pre-wrap;
+            padding: 0;
+            margin-bottom: 2px;
+        }
+        .overlay-panel {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(255,255,255,0.98);
+            z-index: 10;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            opacity: 0; visibility: hidden;
+            transition: opacity 0.2s;
+        }
+        .overlay-panel.active { opacity: 1; visibility: visible; }
+        .diag {
+            margin-top: 12px;
+            padding: 10px;
+            background: #fffbe6;
+            border: 1px solid #ffd966;
+            border-radius: 10px;
+            font-family: monospace;
+            font-size: 13px;
+            color: #222;
+            word-break: break-all;
+        }
+    </style>
 </head>
 <body>
 <div class="app-container" id="app">
-  <!-- (ваша разметка UI — без изменений) -->
-  <div id="diagnostic" class="diag" aria-live="polite">
-    <strong>Диагностика WebApp/initData:</strong>
-    <pre id="diag-content">проверка...</pre>
-  </div>
+    <div id="main-panel-content">
+        <div class="param-block">
+            <button class="custom-button" onclick="showOverlay('pair')">Пара: <span id="display_pair">ETHFDUSD</span></button>
+        </div>
+        <div class="param-block">
+            <button class="custom-button" onclick="showOverlay('action')">Действие: <span id="display_action">buy</span></button>
+        </div>
+        <div class="param-block">
+            <button class="custom-button" onclick="showInputOverlay('profit')">Прибыль %: <span id="display_profit">0.2</span></button>
+        </div>
+        <div class="param-block">
+            <button class="custom-button" onclick="showInputOverlay('loss')">Убыток %: <span id="display_loss">0.1</span></button>
+        </div>
+        <div class="param-block">
+            <button class="custom-button" onclick="showOverlay('total')">Всего %: <span id="display_total">50</span></button>
+        </div>
+        <div class="param-block">
+            <button class="rocket-button" id="start-btn" onclick="startTrade()" style="margin-bottom:0;">СТАРТ</button>
+        </div>
+        <div class="result-block" id="result-block"></div>
+        <button class="exit-button" onclick="exitTelegramBot()">ВЫХОД</button>
+
+        <div id="diagnostic" class="diag" aria-live="polite">
+            <strong>Диагностика WebApp/initData:</strong>
+            <pre id="diag-content">проверка...</pre>
+        </div>
+    </div>
+
+    <div id="overlay-pair" class="overlay-panel">
+        <div style="width:100%;max-width:350px;text-align:center;">
+            <h3 style="margin-bottom:18px;">Выберите пару</h3>
+            <button class="custom-button" onclick="selectPair('BTCFDUSD')">BTCFDUSD</button>
+            <button class="custom-button" onclick="selectPair('ETHFDUSD')">ETHFDUSD</button>
+            <button class="custom-button" onclick="hideAllOverlays()">Назад</button>
+        </div>
+    </div>
+    <div id="overlay-action" class="overlay-panel">
+        <div style="width:100%;max-width:350px;text-align:center;">
+            <h3 style="margin-bottom:18px;">Действие</h3>
+            <button class="custom-button" onclick="selectAction('buy')">Купить</button>
+            <button class="custom-button" onclick="selectAction('sell')">Продать</button>
+            <button class="custom-button" onclick="hideAllOverlays()">Назад</button>
+        </div>
+    </div>
+    <div id="overlay-total" class="overlay-panel">
+        <div style="width:100%;max-width:350px;text-align:center;">
+            <h3 style="margin-bottom:18px;">Всего (%)</h3>
+            <button class="custom-button" onclick="selectTotal(30)">30</button>
+            <button class="custom-button" onclick="selectTotal(50)">50</button>
+            <button class="custom-button" onclick="selectTotal(100)">100</button>
+            <button class="custom-button" onclick="hideAllOverlays()">Назад</button>
+        </div>
+    </div>
+    <div id="overlay-input" class="overlay-panel">
+        <div style="width:100%;max-width:350px;text-align:center;">
+            <h3 id="input-label" style="margin-bottom:18px;"></h3>
+            <input id="input-value" class="input-field" type="number" step="any">
+            <button class="custom-button" onclick="confirmInput()">OK</button>
+            <button class="custom-button" onclick="hideAllOverlays()">Назад</button>
+        </div>
+    </div>
 </div>
 
 <script>
-  // ==== ВАЖНО: замените этот URL на ваш публичный бекенд (ngrok или домен) ====
-  // Пример: const API_HOST = "https://0570da370db6.ngrok-free.app";
-  // НЕ оставляйте пустым, если бек работает не на том же origin что фронт (github.io).
-  const API_HOST = "https://YOUR_BACKEND_URL_HERE";
+    // Если хотите, можно явно указать API_HOST, иначе будет использовать origin
+    const API_HOST = ""; // оставьте пустым чтобы использовать window.location.origin
 
-  // helper: парсер initData из хэша (fallback), и resolve
-  function getInitDataFallbackFromHash() {
-    try {
-      if (!window.location.hash) return null;
-      const h = window.location.hash.replace(/^#/, '');
-      const params = new URLSearchParams(h.replace(/\?/g, '&'));
-      const raw = params.get('tgWebAppData') || params.get('tgWebAppInitData') || null;
-      if (raw) return decodeURIComponent(raw);
-      if (h.startsWith('tgWebAppData=')) return decodeURIComponent(h.slice(h.indexOf('=')+1));
-      return null;
-    } catch (e) { console.error(e); return null; }
-  }
-  function resolveInitData() {
-    try {
-      if (window.Telegram && window.Telegram.WebApp) {
-        const d = window.Telegram.WebApp.initData || window.Telegram.WebApp.initDataUnsafe?.data || null;
-        if (d) return d;
-      }
-    } catch (e) {}
-    return getInitDataFallbackFromHash();
-  }
-
-  // Улучшённый fetch для баланса с логированием ошибок
-  async function fetchAndShowBalance() {
-    setResult("Загрузка баланса...");
-    const initData = resolveInitData();
-    if (!initData) {
-      setResult("Ошибка: Не удалось получить данные Telegram для аутентификации.");
-      return;
+    // Получение initData: сначала пытаем Telegram.WebApp, если нет — парсим из хэша URL (tgWebAppData или tgWebAppInitData)
+    function getInitDataFallbackFromHash() {
+        try {
+            if (!window.location.hash) return null;
+            // hash может выглядеть как "#tgWebAppData=...&tgWebAppVersion=..."
+            const h = window.location.hash.replace(/^#/, '');
+            // ищем параметр tgWebAppData или tgWebAppInitData
+            const params = new URLSearchParams(h.replace(/\?/g, '&'));
+            const raw = params.get('tgWebAppData') || params.get('tgWebAppInitData') || params.get('tgWebAppDataUnsafe') || null;
+            if (raw) {
+                // raw сейчас URL-encoded query string (пример: query_id=...%26user%3D...%26hash%3D...)
+                // Нужно декодировать один раз:
+                const decoded = decodeURIComponent(raw);
+                return decoded;
+            }
+            // иногда tgWebAppData приходит прямо как часть хэша без названия: tgWebAppData=... тут handled, otherwise try to find by prefix
+            // fallback: если хэш начинается с "tgWebAppData=":
+            if (h.startsWith('tgWebAppData=')) {
+                const idx = h.indexOf('=');
+                const val = h.slice(idx + 1);
+                return decodeURIComponent(val);
+            }
+            return null;
+        } catch (e) {
+            console.error("Error parsing initData from hash:", e);
+            return null;
+        }
     }
 
-    const url = `${API_HOST.replace(/\/$/, "")}/get_balance`;
-    console.log("GET_BALANCE ->", url);
-    try {
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "ngrok-skip-browser-warning": "true"
-        },
-        body: JSON.stringify({ initData: initData, pair: params.pair })
-      });
+    // унифицированный доступ к initData для всех вызовов
+    function resolveInitData() {
+        // prefer Telegram.WebApp.initData if present
+        try {
+            if (window.Telegram && window.Telegram.WebApp) {
+                const d = window.Telegram.WebApp.initData || window.Telegram.WebApp.initDataUnsafe?.data || null;
+                if (d) return d;
+            }
+        } catch (e) { /* ignore */ }
 
-      // подробно логируем ответ
-      const text = await resp.text();
-      let data = null;
-      try { data = JSON.parse(text); } catch(e) { data = null; }
-
-      if (!resp.ok) {
-        console.error("get_balance HTTP error", resp.status, text);
-        setResult(`Ошибка сервера (баланс): HTTP ${resp.status}\n${text}`);
-        return;
-      }
-
-      if (data && data.error) {
-        console.warn("get_balance returned error:", data.error);
-        setResult(`Ошибка: ${data.error}`);
-        return;
-      }
-
-      if (data) {
-        setResult(`Баланс:\n${data.base}: ${data.base_balance}\n${data.quote}: ${data.quote_balance}`);
-      } else {
-        setResult("Ошибка: некорректный ответ сервера (баланс). См. консоль.");
-        console.log("get_balance raw response:", text);
-      }
-    } catch (err) {
-      console.error("Network or CORS error when calling get_balance:", err);
-      setResult("Ошибка соединения с сервером (баланс). Проверьте API_HOST и доступность бэкенда.");
+        // fallback: parse from hash
+        const fromHash = getInitDataFallbackFromHash();
+        if (fromHash) {
+            console.log("initData extracted from URL hash (fallback).");
+            return fromHash;
+        }
+        return null;
     }
-  }
 
-  // подключение к WebSocket с использованием API_HOST
-  function wsUrlFromApiHost(apiHost) {
-    if (!apiHost) apiHost = window.location.origin;
-    if (apiHost.startsWith("https://")) return apiHost.replace(/^https:\/\//, "wss://");
-    if (apiHost.startsWith("http://")) return apiHost.replace(/^http:\/\//, "ws://");
-    return (location.protocol === "https:" ? "wss://" : "ws://") + apiHost;
-  }
-  function connectWS() {
-    if (ws) ws.close();
-    const base_ws = wsUrlFromApiHost(API_HOST || window.location.origin);
-    const ws_url = `${base_ws.replace(/\/$/, "")}/ws`;
-    console.log("Connecting WS to", ws_url);
-    ws = new WebSocket(ws_url);
-    ws.onopen = () => console.log("WebSocket connected");
-    ws.onmessage = (event) => setResult(event.data);
-    ws.onclose = () => { console.log("WebSocket closed"); setResult("WebSocket closed"); };
-    ws.onerror = (err) => { console.error('WebSocket Error: ', err); setResult("Ошибка WebSocket"); };
-  }
-
-  // остальные функции UI (setResult, startTrade, и т.д.) — используем resolveInitData() аналогично
-  function setResult(text) {
-    const block = document.getElementById("result-block");
-    if (!block) return;
-    block.innerHTML = "";
-    if (text) text.split("\n").forEach(line => {
-      if (line.trim().length>0) {
-        const d = document.createElement("div"); d.className="result-line"; d.textContent=line;
-        block.appendChild(d);
-      }
-    });
-  }
-
-  async function startTrade() {
-    const initData = resolveInitData();
-    if (!initData) { setResult("Ошибка: Нет initData"); return; }
-    const url = `${API_HOST.replace(/\/$/, "")}/start_trade`;
-    console.log("START_TRADE ->", url);
-    try {
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" },
-        body: JSON.stringify(Object.assign({}, params, { initData: initData }))
-      });
-      const text = await resp.text();
-      try {
-        const data = JSON.parse(text);
-        if (data.error) { setResult(`Ошибка: ${data.error}`); console.warn("start_trade error", data); }
-        else setResult("Запуск торговой операции: OK");
-      } catch (e) {
-        setResult("Некорректный ответ сервера при старте. См. консоль.");
-        console.log("start_trade raw:", text);
-      }
-    } catch (err) {
-      console.error("Network error start_trade:", err);
-      setResult("Ошибка соединения с сервером (start_trade).");
-    }
-  }
-
-  // Diagnostics и init flow — если initData есть, подключаемся
-  document.addEventListener("DOMContentLoaded", () => {
-    try { if (window.Telegram && window.Telegram.WebApp && typeof Telegram.WebApp.ready === 'function') Telegram.WebApp.ready(); } catch(e){}
-    const resolved = resolveInitData();
-    const diagObj = {
-      ts: new Date().toISOString(),
-      location: window.location.href,
-      tgObj: !!(window.Telegram && window.Telegram.WebApp),
-      initDataFromHash: !!getInitDataFallbackFromHash(),
-      initDataResolved: !!resolved
+    let params = {
+        pair: "ETHFDUSD", action: "buy",
+        profit: 0.2, loss: 0.1, total: 50
     };
-    document.getElementById('diag-content').textContent = JSON.stringify(diagObj, null, 2);
-    console.log("Diag:", diagObj);
-    if (resolved) { fetchAndShowBalance(); connectWS(); return; }
-    // wait briefly for possible late injection
-    let tries = 0; const max = 12;
-    const t = setInterval(() => {
-      tries++;
-      const now = resolveInitData();
-      if (now) { clearInterval(t); fetchAndShowBalance(); connectWS(); return; }
-      if (tries>=max) { clearInterval(t); console.warn("initData not received"); }
-    }, 250);
-  });
+    let ws = null, reconnectTimeout = null;
+
+    function updateDisplay() {
+        document.getElementById('display_pair').textContent = params.pair;
+        document.getElementById('display_action').textContent = params.action;
+        document.getElementById('display_profit').textContent = params.profit;
+        document.getElementById('display_loss').textContent = params.loss;
+        document.getElementById('display_total').textContent = params.total;
+    }
+
+    function showOverlay(type) {
+        hideAllOverlays();
+        document.getElementById('overlay-' + type).classList.add('active');
+    }
+    function hideAllOverlays() {
+        document.querySelectorAll('.overlay-panel').forEach(el => el.classList.remove('active'));
+    }
+    function showInputOverlay(field) {
+        hideAllOverlays();
+        const labels = { profit: "Введите прибыль (%)", loss: "Введите убыток (%)" };
+        document.getElementById('input-label').textContent = labels[field];
+        const input = document.getElementById('input-value');
+        input.value = params[field];
+        input.dataset.field = field;
+        document.getElementById('overlay-input').classList.add('active');
+    }
+    function confirmInput() {
+        const field = document.getElementById('input-value').dataset.field;
+        const val = document.getElementById('input-value').value;
+        if (!val || isNaN(val)) return;
+        params[field] = Number(val);
+        hideAllOverlays();
+        updateDisplay();
+    }
+    function selectPair(pair) {
+        params.pair = pair;
+        hideAllOverlays();
+        updateDisplay();
+        fetchAndShowBalance();
+    }
+    function selectAction(action) {
+        params.action = action;
+        hideAllOverlays();
+        updateDisplay();
+    }
+    function selectTotal(val) {
+        params.total = val;
+        hideAllOverlays();
+        updateDisplay();
+    }
+
+    async function fetchAndShowBalance() {
+        setResult("Загрузка баланса...");
+        const initData = resolveInitData();
+        if (!initData) {
+            setResult("Ошибка: Не удалось получить данные Telegram для аутентификации.");
+            return;
+        }
+        try {
+            const resp = await fetch(`${(API_HOST || window.location.origin)}/get_balance`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    // ngrok header retained for compatibility; harmless otherwise
+                    "ngrok-skip-browser-warning": "true"
+                },
+                body: JSON.stringify({
+                    initData: initData,
+                    pair: params.pair
+                })
+            });
+            const data = await resp.json();
+            if (data.error) setResult(`Ошибка: ${data.error}`);
+            else setResult(`Баланс:\n${data.base}: ${data.base_balance}\n${data.quote}: ${data.quote_balance}`);
+        } catch (e) {
+            console.error(e);
+            setResult("Ошибка соединения с сервером (баланс)");
+        }
+    }
+
+    function wsUrlFromApiHost(apiHost) {
+        if (apiHost.startsWith("https://")) return apiHost.replace(/^https:\/\//, "wss://");
+        if (apiHost.startsWith("http://")) return apiHost.replace(/^http:\/\//, "ws://");
+        return (location.protocol === "https:" ? "wss://" : "ws://") + apiHost;
+    }
+
+    function connectWS() {
+        if (ws) ws.close();
+        const base_ws = wsUrlFromApiHost(API_HOST || window.location.origin);
+        const ws_url = `${base_ws.replace(/\/$/, "")}/ws`;
+        ws = new WebSocket(ws_url);
+
+        ws.onopen = () => console.log("WebSocket connected");
+        ws.onmessage = (event) => setResult(event.data);
+        ws.onclose = () => {
+            console.log("WebSocket closed, reconnecting...");
+            clearTimeout(reconnectTimeout);
+            reconnectTimeout = setTimeout(connectWS, 3000);
+        };
+        ws.onerror = (err) => console.error('WebSocket Error: ', err);
+    }
+
+    function setResult(text) {
+        const block = document.getElementById("result-block");
+        block.innerHTML = "";
+        if (text) {
+            text.split("\n").forEach(line => {
+                if (line.trim().length > 0) {
+                    const div = document.createElement("div");
+                    div.className = "result-line";
+                    div.textContent = line;
+                    block.appendChild(div);
+                }
+            });
+        }
+    }
+
+    function startTrade() {
+        const initData = resolveInitData();
+        if (!initData) {
+            setResult("Ошибка: Не удалось получить данные Telegram для аутентификации.");
+            return;
+        }
+        fetch(`${(API_HOST || window.location.origin)}/start_trade`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "ngrok-skip-browser-warning": "true"
+            },
+            body: JSON.stringify({
+                ...params,
+                initData: initData
+            })
+        })
+        .then(resp => resp.json())
+        .then(data => {
+            if (data.error) setResult(`Ошибка: ${data.error}`);
+            else setResult("Запуск торговой операции: OK");
+        })
+        .catch((e) => {
+            console.error(e);
+            setResult("Ошибка соединения с сервером");
+        });
+    }
+
+    function exitTelegramBot() {
+        fetch(`${(API_HOST || window.location.origin)}/stop_telegram`, {
+            method: "POST",
+            headers: { "ngrok-skip-browser-warning": "true" }
+        })
+        .then(() => setResult("Telegram-бот остановлен"));
+    }
+
+    // Diagnostics + init flow
+    function diagShow(obj) {
+        try {
+            document.getElementById('diag-content').textContent = JSON.stringify(obj, null, 2);
+        } catch (e) {
+            console.log("diag show error", e);
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        // Try Telegram.WebApp.ready() if available (harmless)
+        try { if (window.Telegram && window.Telegram.WebApp && typeof Telegram.WebApp.ready === 'function') Telegram.WebApp.ready(); } catch(e) {}
+
+        const locationHref = window.location.href;
+        const ref = document.referrer;
+        const ua = navigator.userAgent || "";
+        let tgPresent = !!(window.Telegram && window.Telegram.WebApp);
+        const hashInit = getInitDataFallbackFromHash();
+        const resolved = resolveInitData();
+
+        const diagObj = {
+            timestamp: new Date().toISOString(),
+            location: locationHref,
+            referrer: ref,
+            userAgent: ua,
+            telegramObjectPresent: tgPresent,
+            initDataFromHashPresent: !!hashInit,
+            initDataResolved: !!resolved,
+            initDataSnippet: resolved ? (resolved.length > 200 ? resolved.slice(0,200) + "..." : resolved) : null
+        };
+        diagShow(diagObj);
+        console.log("WebApp diagnostic:", diagObj);
+
+        // If initData already present, proceed to connect
+        if (resolved) {
+            fetchAndShowBalance();
+            connectWS();
+            return;
+        }
+
+        // wait a bit in case Telegram injects WebApp shortly after load
+        let tries = 0;
+        const maxTries = 12;
+        const t = setInterval(() => {
+            tries++;
+            const nowResolved = resolveInitData();
+            if (nowResolved) {
+                clearInterval(t);
+                const diagObj2 = Object.assign({}, diagObj, { note: "initData received after wait", initDataResolved: true });
+                diagShow(diagObj2);
+                console.log("WebApp diagnostic (late):", diagObj2);
+                fetchAndShowBalance();
+                connectWS();
+                return;
+            }
+            if (tries >= maxTries) {
+                clearInterval(t);
+                console.warn("initData not received after waiting.");
+            }
+        }, 250);
+    });
 </script>
 </body>
 </html>
