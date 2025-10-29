@@ -84,8 +84,6 @@
             transition: opacity 0.2s;
         }
         .overlay-panel.active { opacity: 1; visibility: visible; }
-
-        /* Diagnostic box */
         .diag {
             margin-top: 12px;
             padding: 10px;
@@ -97,7 +95,6 @@
             color: #222;
             word-break: break-all;
         }
-        .diag .label { font-weight: bold; margin-bottom: 6px; display:block; }
     </style>
 </head>
 <body>
@@ -124,10 +121,9 @@
         <div class="result-block" id="result-block"></div>
         <button class="exit-button" onclick="exitTelegramBot()">ВЫХОД</button>
 
-        <!-- Diagnostic area -->
         <div id="diagnostic" class="diag" aria-live="polite">
-            <span class="label">Диагностика WebApp / initData</span>
-            <div id="diag-content">Идет проверка...</div>
+            <strong>Диагностика WebApp/initData:</strong>
+            <pre id="diag-content">проверка...</pre>
         </div>
     </div>
 
@@ -167,7 +163,57 @@
 </div>
 
 <script>
-    const API_HOST = ""; // оставляем пустым — фронт будет использовать origin
+    // Если хотите, можно явно указать API_HOST, иначе будет использовать origin
+    const API_HOST = ""; // оставьте пустым чтобы использовать window.location.origin
+
+    // Получение initData: сначала пытаем Telegram.WebApp, если нет — парсим из хэша URL (tgWebAppData или tgWebAppInitData)
+    function getInitDataFallbackFromHash() {
+        try {
+            if (!window.location.hash) return null;
+            // hash может выглядеть как "#tgWebAppData=...&tgWebAppVersion=..."
+            const h = window.location.hash.replace(/^#/, '');
+            // ищем параметр tgWebAppData или tgWebAppInitData
+            const params = new URLSearchParams(h.replace(/\?/g, '&'));
+            const raw = params.get('tgWebAppData') || params.get('tgWebAppInitData') || params.get('tgWebAppDataUnsafe') || null;
+            if (raw) {
+                // raw сейчас URL-encoded query string (пример: query_id=...%26user%3D...%26hash%3D...)
+                // Нужно декодировать один раз:
+                const decoded = decodeURIComponent(raw);
+                return decoded;
+            }
+            // иногда tgWebAppData приходит прямо как часть хэша без названия: tgWebAppData=... тут handled, otherwise try to find by prefix
+            // fallback: если хэш начинается с "tgWebAppData=":
+            if (h.startsWith('tgWebAppData=')) {
+                const idx = h.indexOf('=');
+                const val = h.slice(idx + 1);
+                return decodeURIComponent(val);
+            }
+            return null;
+        } catch (e) {
+            console.error("Error parsing initData from hash:", e);
+            return null;
+        }
+    }
+
+    // унифицированный доступ к initData для всех вызовов
+    function resolveInitData() {
+        // prefer Telegram.WebApp.initData if present
+        try {
+            if (window.Telegram && window.Telegram.WebApp) {
+                const d = window.Telegram.WebApp.initData || window.Telegram.WebApp.initDataUnsafe?.data || null;
+                if (d) return d;
+            }
+        } catch (e) { /* ignore */ }
+
+        // fallback: parse from hash
+        const fromHash = getInitDataFallbackFromHash();
+        if (fromHash) {
+            console.log("initData extracted from URL hash (fallback).");
+            return fromHash;
+        }
+        return null;
+    }
+
     let params = {
         pair: "ETHFDUSD", action: "buy",
         profit: 0.2, loss: 0.1, total: 50
@@ -223,24 +269,10 @@
         updateDisplay();
     }
 
-    function setResult(text) {
-        const block = document.getElementById("result-block");
-        block.innerHTML = "";
-        if (text) {
-            text.split("\n").forEach(line => {
-                if (line.trim().length > 0) {
-                    const div = document.createElement("div");
-                    div.className = "result-line";
-                    div.textContent = line;
-                    block.appendChild(div);
-                }
-            });
-        }
-    }
-
     async function fetchAndShowBalance() {
         setResult("Загрузка баланса...");
-        if (!window.Telegram?.WebApp?.initData) {
+        const initData = resolveInitData();
+        if (!initData) {
             setResult("Ошибка: Не удалось получить данные Telegram для аутентификации.");
             return;
         }
@@ -249,10 +281,11 @@
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
+                    // ngrok header retained for compatibility; harmless otherwise
                     "ngrok-skip-browser-warning": "true"
                 },
                 body: JSON.stringify({
-                    initData: window.Telegram.WebApp.initData,
+                    initData: initData,
                     pair: params.pair
                 })
             });
@@ -287,8 +320,24 @@
         ws.onerror = (err) => console.error('WebSocket Error: ', err);
     }
 
+    function setResult(text) {
+        const block = document.getElementById("result-block");
+        block.innerHTML = "";
+        if (text) {
+            text.split("\n").forEach(line => {
+                if (line.trim().length > 0) {
+                    const div = document.createElement("div");
+                    div.className = "result-line";
+                    div.textContent = line;
+                    block.appendChild(div);
+                }
+            });
+        }
+    }
+
     function startTrade() {
-        if (!window.Telegram?.WebApp?.initData) {
+        const initData = resolveInitData();
+        if (!initData) {
             setResult("Ошибка: Не удалось получить данные Telegram для аутентификации.");
             return;
         }
@@ -300,7 +349,7 @@
             },
             body: JSON.stringify({
                 ...params,
-                initData: window.Telegram.WebApp.initData
+                initData: initData
             })
         })
         .then(resp => resp.json())
@@ -322,35 +371,25 @@
         .then(() => setResult("Telegram-бот остановлен"));
     }
 
-    // ---------------- Diagnostic logic ----------------
-    function diagShow(txt) {
+    // Diagnostics + init flow
+    function diagShow(obj) {
         try {
-            const el = document.getElementById('diag-content');
-            el.textContent = txt;
-        } catch (e) { console.log("diagShow error", e); }
+            document.getElementById('diag-content').textContent = JSON.stringify(obj, null, 2);
+        } catch (e) {
+            console.log("diag show error", e);
+        }
     }
 
     document.addEventListener("DOMContentLoaded", () => {
-        // Try to call Telegram.WebApp.ready() if present (no harm)
-        if (window.Telegram && window.Telegram.WebApp && typeof Telegram.WebApp.ready === "function") {
-            try { Telegram.WebApp.ready(); } catch (e) {}
-        }
+        // Try Telegram.WebApp.ready() if available (harmless)
+        try { if (window.Telegram && window.Telegram.WebApp && typeof Telegram.WebApp.ready === 'function') Telegram.WebApp.ready(); } catch(e) {}
 
-        updateDisplay();
-
-        // immediate diagnostics
         const locationHref = window.location.href;
         const ref = document.referrer;
         const ua = navigator.userAgent || "";
         let tgPresent = !!(window.Telegram && window.Telegram.WebApp);
-        let initData = null;
-        try {
-            if (tgPresent) {
-                initData = window.Telegram.WebApp.initData || window.Telegram.WebApp.initDataUnsafe?.data || null;
-            }
-        } catch (e) {
-            initData = null;
-        }
+        const hashInit = getInitDataFallbackFromHash();
+        const resolved = resolveInitData();
 
         const diagObj = {
             timestamp: new Date().toISOString(),
@@ -358,44 +397,40 @@
             referrer: ref,
             userAgent: ua,
             telegramObjectPresent: tgPresent,
-            initDataPresent: !!initData,
-            initDataSnippet: initData ? (initData.length > 200 ? initData.slice(0,200) + "..." : initData) : null
+            initDataFromHashPresent: !!hashInit,
+            initDataResolved: !!resolved,
+            initDataSnippet: resolved ? (resolved.length > 200 ? resolved.slice(0,200) + "..." : resolved) : null
         };
-        diagShow(JSON.stringify(diagObj, null, 2));
+        diagShow(diagObj);
         console.log("WebApp diagnostic:", diagObj);
 
-        // wait a bit for possible delayed initData (check up to ~3s)
-        (function waitInit() {
-            let tries = 0, max = 12;
-            const t = setInterval(() => {
-                tries++;
-                let nowInit = null;
-                if (window.Telegram && window.Telegram.WebApp) {
-                    nowInit = window.Telegram.WebApp.initData || window.Telegram.WebApp.initDataUnsafe?.data || null;
-                }
-                if (nowInit) {
-                    const diagObj2 = Object.assign({}, diagObj, { note: "initData received after wait", initDataPresent: true, initDataSnippet: nowInit.length>200? nowInit.slice(0,200)+"...": nowInit });
-                    diagShow(JSON.stringify(diagObj2, null, 2));
-                    console.log("WebApp diagnostic (late):", diagObj2);
-                    clearInterval(t);
-                    // try balance and ws only if we have initData
-                    fetchAndShowBalance();
-                    connectWS();
-                    return;
-                }
-                if (tries >= max) {
-                    clearInterval(t);
-                    // no initData — leave diagnostic for user
-                    console.warn("initData not received after waiting.");
-                }
-            }, 250);
-        })();
-
-        // If initData already present immediately, proceed
-        if (initData) {
+        // If initData already present, proceed to connect
+        if (resolved) {
             fetchAndShowBalance();
             connectWS();
+            return;
         }
+
+        // wait a bit in case Telegram injects WebApp shortly after load
+        let tries = 0;
+        const maxTries = 12;
+        const t = setInterval(() => {
+            tries++;
+            const nowResolved = resolveInitData();
+            if (nowResolved) {
+                clearInterval(t);
+                const diagObj2 = Object.assign({}, diagObj, { note: "initData received after wait", initDataResolved: true });
+                diagShow(diagObj2);
+                console.log("WebApp diagnostic (late):", diagObj2);
+                fetchAndShowBalance();
+                connectWS();
+                return;
+            }
+            if (tries >= maxTries) {
+                clearInterval(t);
+                console.warn("initData not received after waiting.");
+            }
+        }, 250);
     });
 </script>
 </body>
