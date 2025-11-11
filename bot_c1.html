@@ -108,8 +108,9 @@
             <button class="rocket-button" id="start-btn" onclick="startTrade()" style="margin-bottom:0;">СТАРТ</button>
         </div>
         <div class="result-block" id="result-block"></div>
-        <button class="exit-button" onclick="exitTelegramBot()">ВЫХОД</button>
+        <button class="exit-button" onclick="stopTrade()">ОСТАНОВИТЬ ТОРГОВЛЮ</button>
     </div>
+
     <div id="overlay-pair" class="overlay-panel">
         <div style="width:100%;max-width:350px;text-align:center;">
             <h3 style="margin-bottom:18px;">Выберите пару</h3>
@@ -144,10 +145,51 @@
         </div>
     </div>
 </div>
+
 <script>
-    // Укажите адрес вашего сервера (например, ngrok)
-    const API_HOST = "https://0570da370db6.ngrok-free.app";
-    
+    // Если хотите, можно явно указать API_HOST, иначе будет использовать window.location.origin
+    // Оставлено пустым для использования текущего домена/IP
+    const API_HOST = ""; 
+
+    // --- Логика получения initData (критично для аутентификации) ---
+    function getInitDataFallbackFromHash() {
+        try {
+            if (!window.location.hash) return null;
+            const h = window.location.hash.replace(/^#/, '');
+            const params = new URLSearchParams(h.replace(/\?/g, '&'));
+            const raw = params.get('tgWebAppData') || params.get('tgWebAppInitData') || params.get('tgWebAppDataUnsafe') || null;
+            if (raw) {
+                const decoded = decodeURIComponent(raw);
+                return decoded;
+            }
+            if (h.startsWith('tgWebAppData=')) {
+                const idx = h.indexOf('=');
+                const val = h.slice(idx + 1);
+                return decodeURIComponent(val);
+            }
+            return null;
+        } catch (e) {
+            console.error("Error parsing initData from hash:", e);
+            return null;
+        }
+    }
+
+    function resolveInitData() {
+        try {
+            if (window.Telegram && window.Telegram.WebApp) {
+                const d = window.Telegram.WebApp.initData || window.Telegram.WebApp.initDataUnsafe?.data || null;
+                if (d) return d;
+            }
+        } catch (e) { /* ignore */ }
+        
+        const fromHash = getInitDataFallbackFromHash();
+        if (fromHash) {
+            return fromHash;
+        }
+        return null;
+    }
+    // -----------------------------------------------------------------
+
     let params = {
         pair: "ETHFDUSD", action: "buy",
         profit: 0.2, loss: 0.1, total: 50
@@ -181,7 +223,7 @@
     function confirmInput() {
         const field = document.getElementById('input-value').dataset.field;
         const val = document.getElementById('input-value').value;
-        if (!val || isNaN(val)) return;
+        if (!val || isNaN(val) || Number(val) < 0) return; // Простая валидация на положительное число
         params[field] = Number(val);
         hideAllOverlays();
         updateDisplay();
@@ -205,38 +247,55 @@
 
     async function fetchAndShowBalance() {
         setResult("Загрузка баланса...");
-        if (!window.Telegram?.WebApp?.initData) {
-            setResult("Ошибка: Не удалось получить данные Telegram для аутентификации.");
-            return;
+        const initData = resolveInitData();
+        if (!initData) {
+            return setResult("Ошибка: Не удалось получить данные Telegram для аутентификации.");
         }
         try {
-            const resp = await fetch(`${API_HOST}/get_balance`, {
+            const resp = await fetch(`${(API_HOST || window.location.origin)}/get_balance`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    "ngrok-skip-browser-warning": "true" // НЕОБХОДИМЫЙ ЗАГОЛОВОК
+                    "ngrok-skip-browser-warning": "true"
                 },
                 body: JSON.stringify({
-                    initData: window.Telegram.WebApp.initData, // НЕОБХОДИМЫЕ ДАННЫЕ
+                    tg_init_data: initData, // Отправляем initData для проверки
                     pair: params.pair
                 })
             });
             const data = await resp.json();
-            if (data.error) setResult(`Ошибка: ${data.error}`);
+            if (data.status === 'error') setResult(`Ошибка: ${data.message}`);
             else setResult(`Баланс:\n${data.base}: ${data.base_balance}\n${data.quote}: ${data.quote_balance}`);
         } catch (e) {
-            console.error(e);
+            console.error("Ошибка соединения с сервером (баланс):", e);
             setResult("Ошибка соединения с сервером (баланс)");
         }
     }
-    
+
+    function wsUrlFromApiHost(apiHost) {
+        const url = apiHost || window.location.origin;
+        if (url.startsWith("https://")) return url.replace(/^https:\/\//, "wss://");
+        if (url.startsWith("http://")) return url.replace(/^http:\/\//, "ws://");
+        return (location.protocol === "https:" ? "wss://" : "ws://") + url;
+    }
+
     function connectWS() {
         if (ws) ws.close();
-        const ws_host = API_HOST.replace(/^http/, 'ws');
-        ws = new WebSocket(`${ws_host}/ws`);
-        
+        const ws_url = `${wsUrlFromApiHost(API_HOST || window.location.origin).replace(/\/$/, "")}/ws`;
+        ws = new WebSocket(ws_url);
+
         ws.onopen = () => console.log("WebSocket connected");
-        ws.onmessage = (event) => setResult(event.data);
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'log') {
+                    setResult(data.content);
+                }
+            } catch (e) {
+                console.error("Error parsing WS message:", e);
+                setResult(event.data); // Показать сырой текст, если не JSON
+            }
+        };
         ws.onclose = () => {
             console.log("WebSocket closed, reconnecting...");
             clearTimeout(reconnectTimeout);
@@ -244,63 +303,125 @@
         };
         ws.onerror = (err) => console.error('WebSocket Error: ', err);
     }
-    
+
     function setResult(text) {
         const block = document.getElementById("result-block");
-        block.innerHTML = "";
+        
+        // Если приходит JSON с логами, парсим его
+        try {
+            const json_data = JSON.parse(text);
+            if(json_data.type === 'log') {
+                text = json_data.content;
+            } else {
+                // Если пришел другой тип сообщения, просто отображаем его как есть
+                text = JSON.stringify(json_data, null, 2);
+            }
+        } catch (e) {
+            // Если не JSON, это просто текстовый лог
+        }
+
+        // Разбиваем текст по строкам и добавляем в лог
         if (text) {
+             // Если это 'Торговая операция завершена', очищаем блок
+            if (text.includes('Торговая операция завершена')) {
+                block.innerHTML = '';
+            }
+            
             text.split("\n").forEach(line => {
                 if (line.trim().length > 0) {
                     const div = document.createElement("div");
                     div.className = "result-line";
                     div.textContent = line;
-                    block.appendChild(div);
+                    // Добавляем элемент сверху, чтобы он появился снизу благодаря column-reverse
+                    block.prepend(div); 
                 }
             });
+            // Ограничиваем количество строк (например, до 50)
+            while (block.children.length > 50) {
+                block.removeChild(block.lastChild);
+            }
         }
     }
 
     function startTrade() {
-        if (!window.Telegram?.WebApp?.initData) {
-            setResult("Ошибка: Не удалось получить данные Telegram для аутентификации.");
-            return;
+        const initData = resolveInitData();
+        if (!initData) {
+            return setResult("Ошибка: Не удалось получить данные Telegram для аутентификации.");
         }
-        fetch(`${API_HOST}/start_trade`, {
+        // Используем 50% от баланса, как "количество в USD"
+        // На бэкенде нам нужно будет вычислить, какой процент баланса использовать на основе `total`
+        const quantity_usd_estimate = 1000; // Здесь должно быть значение, которое бэкенд поймет
+        
+        fetch(`${(API_HOST || window.location.origin)}/start_trade`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "ngrok-skip-browser-warning": "true" // НЕОБХОДИМЫЙ ЗАГОЛОВОК
+                "ngrok-skip-browser-warning": "true"
             },
             body: JSON.stringify({
-                ...params,
-                initData: window.Telegram.WebApp.initData // НЕОБХОДИМЫЕ ДАННЫЕ
+                symbol: params.pair,
+                action: params.action,
+                quantity_usd: params.total, // Отправляем процент (total) как оценку quantity_usd
+                profit_price_pct: params.profit,
+                stop_loss_pct: params.loss,
+                tg_init_data: initData // Отправляем initData для проверки
             })
         })
         .then(resp => resp.json())
         .then(data => {
-            if (data.error) setResult(`Ошибка: ${data.error}`);
+            if (data.status === 'error') setResult(`Ошибка запуска: ${data.message}`);
+            else setResult("Запуск торговой операции: OK");
         })
         .catch((e) => {
-            console.error(e);
-            setResult("Ошибка соединения с сервером");
+            console.error("Ошибка соединения с сервером (старт):", e);
+            setResult("Ошибка соединения с сервером (старт)");
         });
     }
 
-    function exitTelegramBot() {
-        fetch(`${API_HOST}/stop_telegram`, { 
+    // Изменение: stopTrade теперь останавливает активную торговую задачу
+    function stopTrade() {
+        const initData = resolveInitData();
+        if (!initData) {
+             return setResult("Ошибка: Не удалось получить данные Telegram для аутентификации.");
+        }
+        fetch(`${(API_HOST || window.location.origin)}/stop_trade`, {
             method: "POST",
-            headers: { "ngrok-skip-browser-warning": "true" }
+            headers: {
+                "Content-Type": "application/json",
+                "ngrok-skip-browser-warning": "true"
+            },
+            body: JSON.stringify({ tg_init_data: initData }) // Отправляем initData для проверки
         })
-        .then(() => setResult("Telegram-бот остановлен"));
+        .then(resp => resp.json())
+        .then(data => {
+            if (data.status === 'error') setResult(`Ошибка остановки: ${data.message}`);
+            else setResult(`Торговая операция: ${data.message}`);
+        })
+        .catch((e) => {
+            console.error("Ошибка соединения с сервером (стоп):", e);
+            setResult("Ошибка соединения с сервером (стоп)");
+        });
     }
 
     document.addEventListener("DOMContentLoaded", () => {
-        if (window.Telegram && window.Telegram.WebApp) {
-             Telegram.WebApp.ready();
-        }
+        // Инициализация Telegram WebApp
+        try { 
+            if (window.Telegram && window.Telegram.WebApp && typeof Telegram.WebApp.ready === 'function') {
+                Telegram.WebApp.ready(); 
+            }
+        } catch(e) {}
+
         updateDisplay();
-        fetchAndShowBalance();
-        connectWS();
+        
+        // Если initData уже присутствует (должно быть), то запускаем все
+        if (resolveInitData()) {
+            fetchAndShowBalance();
+            connectWS();
+        } else {
+            setResult("Ожидание данных инициализации Telegram...");
+            // В реальной работе бот должен получить данные инициализации практически мгновенно.
+            // Если нет, это может указывать на проблему.
+        }
     });
 </script>
 </body>
